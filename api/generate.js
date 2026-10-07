@@ -49,6 +49,45 @@ ATURAN:
 - panjang ideal sekitar 250–350 kata
 - jika detail terlalu panjang, rangkum secara efektif
 - jangan menyebut AI, Gemini, atau aplikasi
+
+FORMAT WAJIB:
+
+- Susun teks secara rapi tanpa indentasi di awal paragraf.
+- Gunakan satu baris kosong antarbagian utama.
+- Jangan menggunakan tab atau spasi berlebihan.
+
+Bagian penerima:
+
+Yth. [Penerima]
+di tempat
+
+Jika ada identitas, gunakan:
+
+Nama : ...
+Nomor Telepon : ...
+Surel : ...
+
+Salam pembuka:
+
+Dengan hormat,
+
+Bagian penutup:
+
+Hormat saya,
+
+[Nama]
+
+- Jangan membuat teks rata tengah.
+- Jangan menambahkan simbol atau dekorasi.
+
+Untuk surat lamaran kerja, susun dengan urutan:
+1. Penerima
+2. Salam pembuka
+3. Maksud melamar
+4. Identitas jika memang diberikan
+5. Pengalaman/kompetensi
+6. Penutup
+7. Salam penutup dan nama
 `;
 
     const models = [
