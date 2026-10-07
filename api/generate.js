@@ -48,7 +48,7 @@ ATURAN:
 - utamakan agar surat muat dalam 1 halaman A4
 - panjang ideal sekitar 250–350 kata
 - jika detail terlalu panjang, rangkum secara efektif
-- jangan menyebut AI, Gemini, atau aplikasi
+- jangan menyebut AI, , atau aplikasi
 - DILARANG membuat placeholder dalam bentuk apa pun, termasuk teks dalam tanda [ ].
 - Surat HARUS diprioritaskan selesai dalam 1 halaman A4.
 - Batasi isi sekitar 200–280 kata.
@@ -97,10 +97,10 @@ Untuk surat lamaran kerja, susun dengan urutan:
 7. Salam penutup dan nama
 `;
 
-    const models = [
-      "gemini-2.5-flash",
-      "gemini-2.5-flash-lite"
-    ];
+const models = [
+  "gemini-3.5-flash",
+  "gemini-3.5-flash-lite"
+];
 
     let lastError = "Gemini sedang tidak tersedia.";
 
