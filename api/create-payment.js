@@ -69,20 +69,15 @@ export default async function handler(req, res) {
     );
 
 
-    if (!saveResponse.ok) {
-      const errorText =
-        await saveResponse.text();
+if (!saveResponse.ok) {
+  const errorText = await saveResponse.text();
 
-      console.error(
-        "Supabase error:",
-        errorText
-      );
+  console.error("Supabase error:", errorText);
 
-      return res.status(500).json({
-        error: "Gagal menyimpan draft surat."
-      });
-    }
-
+  return res.status(500).json({
+    error: `Supabase: ${errorText}`
+  });
+}
 
     // BUAT TRANSAKSI MIDTRANS
     const auth =
