@@ -16,8 +16,7 @@ const statusBox = document.getElementById("status");
 
 
 function showStatus(message, type = "info") {
-  statusBox.className =
-    "mt-4 p-3 rounded-lg text-sm";
+  statusBox.className = "mt-4 p-3 rounded-lg text-sm";
 
   if (type === "error") {
     statusBox.classList.add(
@@ -41,18 +40,10 @@ function showStatus(message, type = "info") {
 
 
 async function generateSurat() {
-  const jenis =
-    document.getElementById("jenis").value;
-
-  const nama =
-    document.getElementById("nama").value.trim();
-
-  const penerima =
-    document.getElementById("penerima").value.trim();
-
-  const detail =
-    document.getElementById("detail").value.trim();
-
+  const jenis = document.getElementById("jenis").value;
+  const nama = document.getElementById("nama").value.trim();
+  const penerima = document.getElementById("penerima").value.trim();
+  const detail = document.getElementById("detail").value.trim();
 
   if (!nama || !penerima || !detail) {
     showStatus(
@@ -63,73 +54,55 @@ async function generateSurat() {
     return;
   }
 
-
   generateBtn.disabled = true;
+  generateBtn.textContent = "⏳ AI sedang menyusun surat...";
 
-  generateBtn.textContent =
-    "⏳ AI sedang menyusun surat...";
-
-  output.textContent =
-    "Sedang menyusun surat...";
-
+  output.textContent = "Sedang menyusun surat...";
 
   try {
-    const response =
-      await fetch("/api/generate", {
-        method: "POST",
+    const response = await fetch("/api/generate", {
+      method: "POST",
 
-        headers: {
-          "Content-Type": "application/json"
-        },
+      headers: {
+        "Content-Type": "application/json"
+      },
 
-        body: JSON.stringify({
-          jenis,
-          nama,
-          penerima,
-          detail
-        })
-      });
+      body: JSON.stringify({
+        jenis,
+        nama,
+        penerima,
+        detail
+      })
+    });
 
-
-    const data =
-      await response.json();
-
+    const data = await response.json();
 
     if (!response.ok) {
       throw new Error(
-        data.error ||
-        "Gagal membuat surat."
+        data.error || "Gagal membuat surat."
       );
     }
 
-
-    output.textContent =
-      data.result;
-
+    output.textContent = data.result;
 
     showStatus(
       "Surat berhasil dibuat.",
       "success"
     );
 
-
   } catch (error) {
     console.error(error);
 
-    output.textContent =
-      "Surat belum berhasil dibuat.";
+    output.textContent = "Surat belum berhasil dibuat.";
 
     showStatus(
       error.message,
       "error"
     );
 
-
   } finally {
     generateBtn.disabled = false;
-
-    generateBtn.textContent =
-      "✨ Buat Surat dengan AI";
+    generateBtn.textContent = "✨ Buat Surat dengan AI";
   }
 }
 
@@ -150,12 +123,12 @@ regenerateBtn.addEventListener(
 copyBtn.addEventListener(
   "click",
   async () => {
-    const text =
-      output.innerText.trim();
+    const text = output.innerText.trim();
 
     if (
       !text ||
-      text === "Hasil surat akan muncul di sini..."
+      text === "Hasil surat akan muncul di sini..." ||
+      text === "Surat belum berhasil dibuat."
     ) {
       showStatus(
         "Belum ada surat untuk disalin.",
@@ -187,8 +160,7 @@ copyBtn.addEventListener(
 editBtn.addEventListener(
   "click",
   () => {
-    const editable =
-      output.getAttribute("contenteditable");
+    const editable = output.getAttribute("contenteditable");
 
     if (editable === "true") {
       output.setAttribute(
@@ -196,8 +168,7 @@ editBtn.addEventListener(
         "false"
       );
 
-      editBtn.textContent =
-        "✏️ Edit";
+      editBtn.textContent = "✏️ Edit";
 
       output.classList.remove(
         "ring-2",
@@ -224,8 +195,7 @@ editBtn.addEventListener(
         "p-2"
       );
 
-      editBtn.textContent =
-        "💾 Selesai Edit";
+      editBtn.textContent = "💾 Selesai Edit";
 
       showStatus(
         "Anda sekarang dapat mengedit isi surat.",
@@ -236,167 +206,208 @@ editBtn.addEventListener(
 );
 
 
-// BUKA POPUP CETAK
-printBtn.addEventListener("click", async () => {
-  try {
-    printBtn.disabled = true;
-    printBtn.textContent = "⏳ Membuat pembayaran...";
-
-    const response = await fetch("/api/create-payment", {
-      method: "POST"
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(
-        data.error || "Gagal membuat pembayaran."
-      );
-    }
-
-    // Buka halaman pembayaran Midtrans
-    window.open(data.redirect_url, "_blank");
-
-  } catch (error) {
-    alert(error.message);
-
-  } finally {
-    printBtn.disabled = false;
-    printBtn.textContent = "🖨️ Cetak";
-  }
-});
-
-
-// TUTUP POPUP
-closePrintModal.addEventListener(
+// CETAK -> BAYAR MIDTRANS
+printBtn.addEventListener(
   "click",
-  () => {
-    printModal.classList.add("hidden");
-    printModal.classList.remove("flex");
-  }
-);
-
-
-// TUTUP SAAT KLIK AREA GELAP
-printModal.addEventListener(
-  "click",
-  (event) => {
-    if (event.target === printModal) {
-      printModal.classList.add("hidden");
-      printModal.classList.remove("flex");
-    }
-  }
-);
-
-
-// PDF
-pdfBtn.addEventListener(
-  "click",
-  () => {
-    printModal.classList.add("hidden");
-    printModal.classList.remove("flex");
-
-    window.print();
-  }
-);
-
-
-// WORD
-wordBtn.addEventListener(
-  "click",
-  () => {
-    const text =
-      output.innerText.trim();
+  async () => {
+    const text = output.innerText.trim();
 
     if (
       !text ||
-      text === "Hasil surat akan muncul di sini..."
+      text === "Hasil surat akan muncul di sini..." ||
+      text === "Surat belum berhasil dibuat."
     ) {
       showStatus(
-        "Belum ada surat untuk diunduh.",
+        "Buat surat terlebih dahulu sebelum mencetak.",
         "error"
       );
 
       return;
     }
 
+    try {
+      printBtn.disabled = true;
+      printBtn.textContent = "⏳ Membuat pembayaran...";
 
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <style>
-          @page {
-            size: A4;
-            margin: 2cm;
-          }
-
-          body {
-            font-family: Arial, Helvetica, sans-serif;
-            font-size: 11pt;
-            line-height: 1.5;
-          }
-
-          .surat {
-            white-space: pre-wrap;
-            text-align: justify;
-          }
-        </style>
-      </head>
-
-      <body>
-        <div class="surat">
-          ${escapeHtml(text).replace(/\n/g, "<br>")}
-        </div>
-      </body>
-      </html>
-    `;
-
-
-    const blob =
-      new Blob(
-        ["\ufeff", htmlContent],
+      const response = await fetch(
+        "/api/create-payment",
         {
-          type:
-            "application/msword"
+          method: "POST",
+
+          headers: {
+            "Content-Type": "application/json"
+          }
         }
       );
 
+      const data = await response.json();
 
-    const url =
-      URL.createObjectURL(blob);
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+          "Gagal membuat pembayaran."
+        );
+      }
 
+      if (!data.redirect_url) {
+        throw new Error(
+          "URL pembayaran tidak ditemukan."
+        );
+      }
 
-    const link =
-      document.createElement("a");
+      // Simpan surat sementara
+      sessionStorage.setItem(
+        "suratSetelahBayar",
+        text
+      );
 
+      sessionStorage.setItem(
+        "orderId",
+        data.order_id || ""
+      );
 
-    link.href = url;
+      // Redirect langsung ke Midtrans
+      window.location.href =
+        data.redirect_url;
 
-    link.download =
-      "surat.doc";
+    } catch (error) {
+      console.error(error);
 
+      showStatus(
+        error.message,
+        "error"
+      );
 
-    document.body.appendChild(link);
-
-    link.click();
-
-    document.body.removeChild(link);
-
-    URL.revokeObjectURL(url);
-
-
-    printModal.classList.add("hidden");
-    printModal.classList.remove("flex");
-
-
-    showStatus(
-      "File Word berhasil dibuat.",
-      "success"
-    );
+      printBtn.disabled = false;
+      printBtn.textContent = "🖨️ Cetak";
+    }
   }
 );
+
+
+// TUTUP POPUP
+if (closePrintModal) {
+  closePrintModal.addEventListener(
+    "click",
+    () => {
+      printModal.classList.add("hidden");
+      printModal.classList.remove("flex");
+    }
+  );
+}
+
+
+// TUTUP SAAT KLIK AREA GELAP
+if (printModal) {
+  printModal.addEventListener(
+    "click",
+    (event) => {
+      if (event.target === printModal) {
+        printModal.classList.add("hidden");
+        printModal.classList.remove("flex");
+      }
+    }
+  );
+}
+
+
+// PDF
+if (pdfBtn) {
+  pdfBtn.addEventListener(
+    "click",
+    () => {
+      printModal.classList.add("hidden");
+      printModal.classList.remove("flex");
+
+      window.print();
+    }
+  );
+}
+
+
+// WORD
+if (wordBtn) {
+  wordBtn.addEventListener(
+    "click",
+    () => {
+      const text = output.innerText.trim();
+
+      if (
+        !text ||
+        text === "Hasil surat akan muncul di sini..."
+      ) {
+        showStatus(
+          "Belum ada surat untuk diunduh.",
+          "error"
+        );
+
+        return;
+      }
+
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+
+          <style>
+            @page {
+              size: A4;
+              margin: 2cm;
+            }
+
+            body {
+              font-family: Arial, Helvetica, sans-serif;
+              font-size: 11pt;
+              line-height: 1.5;
+            }
+
+            .surat {
+              white-space: pre-wrap;
+              text-align: justify;
+            }
+          </style>
+        </head>
+
+        <body>
+          <div class="surat">
+            ${escapeHtml(text).replace(/\n/g, "<br>")}
+          </div>
+        </body>
+        </html>
+      `;
+
+      const blob = new Blob(
+        ["\ufeff", htmlContent],
+        {
+          type: "application/msword"
+        }
+      );
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = "surat.doc";
+
+      document.body.appendChild(link);
+
+      link.click();
+
+      document.body.removeChild(link);
+
+      URL.revokeObjectURL(url);
+
+      printModal.classList.add("hidden");
+      printModal.classList.remove("flex");
+
+      showStatus(
+        "File Word berhasil dibuat.",
+        "success"
+      );
+    }
+  );
+}
 
 
 function escapeHtml(text) {
