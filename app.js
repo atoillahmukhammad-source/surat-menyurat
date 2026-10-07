@@ -1,106 +1,89 @@
-document
-  .getElementById("generateBtn")
-  .addEventListener("click", () => {
+const generateBtn =
+  document.getElementById("generateBtn");
 
-    const jenis = document.getElementById("jenis").value;
-    const nama = document.getElementById("nama").value.trim();
-    const penerima = document.getElementById("penerima").value.trim();
-    const detail = document.getElementById("detail").value.trim();
+const output =
+  document.getElementById("output");
+
+generateBtn.addEventListener(
+  "click",
+  async () => {
+
+    const jenis =
+      document.getElementById("jenis").value;
+
+    const nama =
+      document.getElementById("nama").value.trim();
+
+    const penerima =
+      document.getElementById("penerima").value.trim();
+
+    const detail =
+      document.getElementById("detail").value.trim();
 
     if (!nama || !penerima || !detail) {
-      alert("Mohon lengkapi semua data terlebih dahulu.");
+      alert(
+        "Mohon lengkapi semua data terlebih dahulu."
+      );
       return;
     }
 
-    let isiSurat = "";
+    // Loading
+    generateBtn.disabled = true;
 
-    if (jenis === "Surat Lamaran Kerja") {
+    generateBtn.textContent =
+      "⏳ AI sedang membuat surat...";
 
-      isiSurat = `
-SURAT LAMARAN KERJA
+    output.textContent =
+      "Sedang menyusun surat...";
 
-Kepada Yth.
-${penerima}
+    try {
 
-Dengan hormat,
+      const response =
+        await fetch("/api/generate", {
+          method: "POST",
 
-Saya yang bertanda tangan di bawah ini:
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
 
-Nama: ${nama}
+          body: JSON.stringify({
+            jenis,
+            nama,
+            penerima,
+            detail
+          })
+        });
 
-Dengan ini bermaksud mengajukan lamaran pekerjaan kepada ${penerima}.
+      const data =
+        await response.json();
 
-Adapun informasi tambahan yang ingin saya sampaikan adalah:
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+          "Gagal membuat surat"
+        );
+      }
 
-${detail}
+      output.textContent =
+        data.result;
 
-Saya berharap dapat diberikan kesempatan untuk mengikuti proses seleksi lebih lanjut.
+    } catch (error) {
 
-Demikian surat lamaran ini saya sampaikan. Atas perhatian dan kesempatan yang diberikan, saya mengucapkan terima kasih.
+      console.error(error);
 
-Hormat saya,
+      output.textContent =
+        "Terjadi kesalahan:\n\n" +
+        error.message;
 
-${nama}
-`;
+    } finally {
 
-    } else if (jenis === "Surat Izin Kerja") {
+      generateBtn.disabled =
+        false;
 
-      isiSurat = `
-SURAT IZIN KERJA
-
-Kepada Yth.
-${penerima}
-
-Dengan hormat,
-
-Saya yang bertanda tangan di bawah ini:
-
-Nama: ${nama}
-
-Dengan ini bermaksud mengajukan izin untuk tidak dapat menjalankan pekerjaan sebagaimana mestinya.
-
-Alasan/keterangan:
-
-${detail}
-
-Demikian surat izin ini saya sampaikan. Atas perhatian dan pengertiannya, saya mengucapkan terima kasih.
-
-Hormat saya,
-
-${nama}
-`;
-
-    } else if (jenis === "Surat Pengunduran Diri") {
-
-      isiSurat = `
-SURAT PENGUNDURAN DIRI
-
-Kepada Yth.
-${penerima}
-
-Dengan hormat,
-
-Saya yang bertanda tangan di bawah ini:
-
-Nama: ${nama}
-
-Dengan surat ini bermaksud menyampaikan pengunduran diri saya.
-
-Keterangan:
-
-${detail}
-
-Saya mengucapkan terima kasih atas kesempatan, pengalaman, dan kepercayaan yang telah diberikan selama ini.
-
-Demikian surat pengunduran diri ini saya sampaikan dengan sebenar-benarnya.
-
-Hormat saya,
-
-${nama}
-`;
+      generateBtn.textContent =
+        "✨ Buat Surat dengan AI";
 
     }
-
-    document.getElementById("output").textContent = isiSurat;
-
-  });
+  }
+);
