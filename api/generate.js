@@ -59,6 +59,9 @@ ATURAN:
 - Jangan membuat daftar lampiran kecuali pengguna secara eksplisit memberikan daftar lampiran.
 - Jangan menambahkan data atau persyaratan lamaran yang tidak diberikan pengguna.
 - Ringkas pengalaman pengguna menjadi maksimal 1 paragraf.
+- surat boleh singkat jika jenis surat tidak membutuhkan uraian panjang
+- jangan memaksakan panjang minimum
+- yang terpenting surat harus lengkap sampai salam penutup dan nama pengirim
 
 FORMAT WAJIB:
 
@@ -145,12 +148,9 @@ const models = [
           .join("")
           .trim();
 
-      if (
-  text.length < 500 ||
-  !/[.!?]\s*$/.test(text)
-) {
+if (!/[.!?]\s*$/.test(text)) {
   lastError =
-    `Model ${model} menghasilkan surat yang belum lengkap.`;
+    `Model ${model} menghasilkan surat yang belum selesai.`;
 
   continue;
 }
