@@ -124,7 +124,7 @@ const models = [
             ],
             generationConfig: {
               temperature: 0.3,
-              maxOutputTokens: 1400
+              maxOutputTokens: 3000
             }
           })
         }
@@ -145,7 +145,15 @@ const models = [
           .join("")
           .trim();
 
-      if (!text) continue;
+      if (
+  text.length < 500 ||
+  !/[.!?]\s*$/.test(text)
+) {
+  lastError =
+    `Model ${model} menghasilkan surat yang belum lengkap.`;
+
+  continue;
+}
 
       text = text
         .replace(/^Tentu[,!.]?\s*/i, "")
