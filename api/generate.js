@@ -49,6 +49,13 @@ ATURAN:
 - panjang ideal sekitar 250–350 kata
 - jika detail terlalu panjang, rangkum secara efektif
 - jangan menyebut AI, Gemini, atau aplikasi
+- DILARANG membuat placeholder dalam bentuk apa pun, termasuk teks dalam tanda [ ].
+- Surat HARUS diprioritaskan selesai dalam 1 halaman A4.
+- Batasi isi sekitar 200–280 kata.
+- Maksimal 5 paragraf utama.
+- Jangan membuat daftar lampiran kecuali pengguna secara eksplisit memberikan daftar lampiran.
+- Jangan menambahkan data atau persyaratan lamaran yang tidak diberikan pengguna.
+- Ringkas pengalaman pengguna menjadi maksimal 1 paragraf.
 
 FORMAT WAJIB:
 
@@ -114,7 +121,7 @@ Untuk surat lamaran kerja, susun dengan urutan:
             ],
             generationConfig: {
               temperature: 0.3,
-              maxOutputTokens: 1200
+              maxOutputTokens: 800
             }
           })
         }
