@@ -18,18 +18,16 @@
       box-sizing: border-box;
     }
 
-#output {
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 15px;
-  line-height: 1.6;
-  color: #111827;
-
-  white-space: pre-wrap;
-  overflow-wrap: break-word;
-
-  text-align: justify;
-  text-justify: inter-word;
-}
+    #output {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      color: #111827;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      text-align: justify;
+      text-justify: inter-word;
+    }
 
     @page {
       size: A4 portrait;
@@ -72,23 +70,24 @@
       }
 
       #output {
-  font-family: Arial, Helvetica, sans-serif !important;
-  font-size: 11.5pt !important;
-  line-height: 1.5 !important;
+        font-family: Arial, Helvetica, sans-serif !important;
+        font-size: 11.5pt !important;
+        line-height: 1.5 !important;
 
-  color: black !important;
+        color: black !important;
 
-  margin: 0 !important;
-  padding: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
 
-  white-space: pre-wrap !important;
+        white-space: pre-wrap !important;
 
-  text-align: justify !important;
-  text-justify: inter-word !important;
-}
+        text-align: justify !important;
+        text-justify: inter-word !important;
+      }
 
       .no-print,
-      #status {
+      #status,
+      #printModal {
         display: none !important;
       }
     }
@@ -207,7 +206,7 @@
             id="printBtn"
             class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
           >
-            🖨️ Cetak / PDF
+            🖨️ Cetak
           </button>
 
           <button
@@ -234,16 +233,68 @@
 
         </div>
 
-        <div class="no-print max-w-[210mm] mx-auto mt-3 text-xs text-slate-500">
-          Saat mencetak, nonaktifkan <strong>Headers and footers</strong>
-          pada menu <strong>More settings</strong> agar URL, tanggal, dan nomor halaman browser tidak ikut tercetak.
-        </div>
-
       </section>
 
     </div>
 
   </div>
+
+
+  <!-- POPUP CETAK -->
+  <div
+    id="printModal"
+    class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 no-print"
+  >
+    <div class="bg-white rounded-2xl shadow-xl p-6 w-[340px]">
+
+      <h3 class="text-xl font-semibold mb-2">
+        Pilih Format Dokumen
+      </h3>
+
+      <p class="text-sm text-slate-500 mb-5">
+        Pilih format surat yang ingin dihasilkan.
+      </p>
+
+      <div class="space-y-3">
+
+        <button
+          id="wordBtn"
+          class="w-full border border-blue-200 bg-blue-50 hover:bg-blue-100 rounded-xl p-4 text-left"
+        >
+          <div class="font-semibold">
+            📘 Microsoft Word
+          </div>
+
+          <div class="text-xs text-slate-500 mt-1">
+            Unduh surat untuk diedit kembali.
+          </div>
+        </button>
+
+        <button
+          id="pdfBtn"
+          class="w-full border border-red-200 bg-red-50 hover:bg-red-100 rounded-xl p-4 text-left"
+        >
+          <div class="font-semibold">
+            📕 PDF
+          </div>
+
+          <div class="text-xs text-slate-500 mt-1">
+            Simpan surat dalam format siap cetak.
+          </div>
+        </button>
+
+      </div>
+
+      <button
+        id="closePrintModal"
+        class="w-full mt-5 text-sm text-slate-500 hover:text-slate-800"
+      >
+        Batal
+      </button>
+
+    </div>
+  </div>
+
 
   <script src="app.js"></script>
 
