@@ -1,129 +1,185 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <title>Surat Menyurat AI</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+
+      #suratPreview,
+      #suratPreview * {
+        visibility: visible;
+      }
+
+      #suratPreview {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        box-shadow: none;
+        border: none;
+      }
+
+      .no-print {
+        display: none !important;
+      }
+    }
+  </style>
 </head>
 
 <body class="bg-slate-100 min-h-screen">
 
-  <div class="max-w-6xl mx-auto p-4 md:p-8">
+<div class="max-w-7xl mx-auto p-4 md:p-8">
 
-    <div class="mb-6">
-      <h1 class="text-3xl font-bold text-slate-900">
-        📄 Surat Menyurat AI
-      </h1>
+  <!-- HEADER -->
+  <div class="mb-6">
+    <h1 class="text-3xl font-bold text-slate-900">
+      📄 Surat Menyurat AI
+    </h1>
 
-      <p class="text-slate-500 mt-1">
-        Buat surat profesional dengan bantuan Gemini AI
-      </p>
+    <p class="text-slate-500 mt-1">
+      Generator surat profesional berbasis AI
+    </p>
+  </div>
+
+
+  <div class="grid lg:grid-cols-[380px_1fr] gap-6">
+
+    <!-- FORM -->
+    <div class="bg-white p-6 rounded-2xl shadow-sm border h-fit">
+
+      <h2 class="font-semibold text-lg mb-5">
+        Data Surat
+      </h2>
+
+      <label class="text-sm font-medium">
+        Jenis Surat
+      </label>
+
+      <select
+        id="jenis"
+        class="w-full border rounded-lg p-3 mt-1 mb-4"
+      >
+        <option>Surat Lamaran Kerja</option>
+        <option>Surat Izin Kerja</option>
+        <option>Surat Pengunduran Diri</option>
+        <option>Surat Permohonan</option>
+        <option>Surat Undangan</option>
+        <option>Surat Tugas</option>
+        <option>Surat Keterangan</option>
+        <option>Surat Dinas</option>
+      </select>
+
+
+      <label class="text-sm font-medium">
+        Nama Pengirim
+      </label>
+
+      <input
+        id="nama"
+        type="text"
+        placeholder="Nama lengkap"
+        class="w-full border rounded-lg p-3 mt-1 mb-4"
+      >
+
+
+      <label class="text-sm font-medium">
+        Penerima / Instansi
+      </label>
+
+      <input
+        id="penerima"
+        type="text"
+        placeholder="Nama penerima atau instansi"
+        class="w-full border rounded-lg p-3 mt-1 mb-4"
+      >
+
+
+      <label class="text-sm font-medium">
+        Detail Surat
+      </label>
+
+      <textarea
+        id="detail"
+        rows="8"
+        placeholder="Jelaskan kebutuhan surat secara singkat..."
+        class="w-full border rounded-lg p-3 mt-1 mb-4"
+      ></textarea>
+
+
+      <button
+        id="generateBtn"
+        class="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-medium py-3 rounded-lg transition"
+      >
+        ✨ Buat Surat dengan AI
+      </button>
+
+
+      <div
+        id="status"
+        class="hidden mt-4 p-3 rounded-lg text-sm"
+      ></div>
+
     </div>
 
-    <div class="grid lg:grid-cols-2 gap-6">
 
-      <!-- FORM -->
-      <div class="bg-white p-6 rounded-2xl shadow-sm border">
+    <!-- AREA PREVIEW -->
+    <div>
 
-        <h2 class="text-lg font-semibold mb-5">
-          Data Surat
-        </h2>
-
-        <label class="block text-sm font-medium mb-1">
-          Jenis Surat
-        </label>
-
-        <select
-          id="jenis"
-          class="w-full border rounded-lg p-3 mb-4"
-        >
-          <option>Surat Lamaran Kerja</option>
-          <option>Surat Izin Kerja</option>
-          <option>Surat Pengunduran Diri</option>
-          <option>Surat Permohonan</option>
-          <option>Surat Undangan</option>
-          <option>Surat Tugas</option>
-          <option>Surat Keterangan</option>
-          <option>Surat Dinas</option>
-        </select>
-
-
-        <label class="block text-sm font-medium mb-1">
-          Nama Pengirim
-        </label>
-
-        <input
-          id="nama"
-          type="text"
-          placeholder="Contoh: Samsul Hadi"
-          class="w-full border rounded-lg p-3 mb-4"
-        />
-
-
-        <label class="block text-sm font-medium mb-1">
-          Penerima / Instansi
-        </label>
-
-        <input
-          id="penerima"
-          type="text"
-          placeholder="Contoh: PT Berkah Indonesia"
-          class="w-full border rounded-lg p-3 mb-4"
-        />
-
-
-        <label class="block text-sm font-medium mb-1">
-          Detail / Pokok Surat
-        </label>
-
-        <textarea
-          id="detail"
-          rows="8"
-          placeholder="Jelaskan kebutuhan surat. Contoh: Saya ingin melamar posisi analis kebijakan dan memiliki pengalaman 5 tahun..."
-          class="w-full border rounded-lg p-3 mb-4"
-        ></textarea>
-
+      <!-- TOOLBAR -->
+      <div class="no-print flex flex-wrap gap-2 mb-4">
 
         <button
-          id="generateBtn"
-          class="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-medium py-3 rounded-lg transition"
+          id="copyBtn"
+          class="bg-white border px-4 py-2 rounded-lg hover:bg-slate-50"
         >
-          ✨ Buat Surat dengan AI
+          📋 Salin
+        </button>
+
+        <button
+          id="editBtn"
+          class="bg-white border px-4 py-2 rounded-lg hover:bg-slate-50"
+        >
+          ✏️ Edit
+        </button>
+
+        <button
+          id="printBtn"
+          class="bg-white border px-4 py-2 rounded-lg hover:bg-slate-50"
+        >
+          🖨️ Cetak / PDF
+        </button>
+
+        <button
+          id="regenerateBtn"
+          class="bg-white border px-4 py-2 rounded-lg hover:bg-slate-50"
+        >
+          🔄 Buat Ulang
         </button>
 
       </div>
 
 
-      <!-- HASIL -->
-      <div class="bg-white p-6 rounded-2xl shadow-sm border">
-
-        <div class="flex items-center justify-between mb-5">
-
-          <h2 class="text-lg font-semibold">
-            Hasil Surat
-          </h2>
-
-          <button
-            id="copyBtn"
-            class="text-sm bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-lg"
-          >
-            Salin
-          </button>
-
-        </div>
+      <!-- KERTAS A4 -->
+      <div
+        id="suratPreview"
+        class="bg-white shadow-md mx-auto p-[25mm] min-h-[297mm] max-w-[210mm]"
+      >
 
         <div
-          id="status"
-          class="hidden mb-4 p-3 rounded-lg text-sm"
-        ></div>
-
-        <pre
           id="output"
-          class="whitespace-pre-wrap font-sans leading-7 min-h-[500px] text-slate-800"
-        >Hasil surat akan muncul di sini...</pre>
+          class="whitespace-pre-wrap leading-8 text-[15px] text-slate-900 outline-none"
+        >
+Hasil surat akan muncul di sini...
+        </div>
 
       </div>
 
@@ -131,7 +187,10 @@
 
   </div>
 
-  <script src="app.js"></script>
+</div>
+
+
+<script src="app.js"></script>
 
 </body>
 </html>
