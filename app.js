@@ -229,16 +229,20 @@ printBtn.addEventListener(
       printBtn.disabled = true;
       printBtn.textContent = "⏳ Membuat pembayaran...";
 
-      const response = await fetch(
-        "/api/create-payment",
-        {
-          method: "POST",
+const response = await fetch(
+  "/api/create-payment",
+  {
+    method: "POST",
 
-          headers: {
-            "Content-Type": "application/json"
-          }
-        }
-      );
+    headers: {
+      "Content-Type": "application/json"
+    },
+
+    body: JSON.stringify({
+      surat_text: text
+    })
+  }
+);
 
       const data = await response.json();
 
