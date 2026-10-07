@@ -39,25 +39,39 @@ function showStatus(message, type = "info") {
 }
 
 
+// =========================
+// GENERATE SURAT
+// =========================
 async function generateSurat() {
-  const jenis = document.getElementById("jenis").value;
-  const nama = document.getElementById("nama").value.trim();
-  const penerima = document.getElementById("penerima").value.trim();
-  const detail = document.getElementById("detail").value.trim();
+  const jenis =
+    document.getElementById("jenis").value;
+
+  const nama =
+    document.getElementById("nama").value.trim();
+
+  const penerima =
+    document.getElementById("penerima").value.trim();
+
+  const detail =
+    document.getElementById("detail").value.trim();
+
 
   if (!nama || !penerima || !detail) {
     showStatus(
       "Mohon lengkapi semua data terlebih dahulu.",
       "error"
     );
-
     return;
   }
 
-  generateBtn.disabled = true;
-  generateBtn.textContent = "⏳ AI sedang menyusun surat...";
 
-  output.textContent = "Sedang menyusun surat...";
+  generateBtn.disabled = true;
+  generateBtn.textContent =
+    "⏳ AI sedang menyusun surat...";
+
+  output.textContent =
+    "Sedang menyusun surat...";
+
 
   try {
     const response = await fetch("/api/generate", {
@@ -75,7 +89,9 @@ async function generateSurat() {
       })
     });
 
+
     const data = await response.json();
+
 
     if (!response.ok) {
       throw new Error(
@@ -83,26 +99,32 @@ async function generateSurat() {
       );
     }
 
+
     output.textContent = data.result;
+
 
     showStatus(
       "Surat berhasil dibuat.",
       "success"
     );
 
+
   } catch (error) {
     console.error(error);
 
-    output.textContent = "Surat belum berhasil dibuat.";
+    output.textContent =
+      "Surat belum berhasil dibuat.";
 
     showStatus(
       error.message,
       "error"
     );
 
+
   } finally {
     generateBtn.disabled = false;
-    generateBtn.textContent = "✨ Buat Surat dengan AI";
+    generateBtn.textContent =
+      "✨ Buat Surat dengan AI";
   }
 }
 
@@ -119,11 +141,14 @@ regenerateBtn.addEventListener(
 );
 
 
+// =========================
 // SALIN
+// =========================
 copyBtn.addEventListener(
   "click",
   async () => {
-    const text = output.innerText.trim();
+    const text =
+      output.innerText.trim();
 
     if (
       !text ||
@@ -137,6 +162,7 @@ copyBtn.addEventListener(
 
       return;
     }
+
 
     try {
       await navigator.clipboard.writeText(text);
@@ -156,11 +182,15 @@ copyBtn.addEventListener(
 );
 
 
+// =========================
 // EDIT
+// =========================
 editBtn.addEventListener(
   "click",
   () => {
-    const editable = output.getAttribute("contenteditable");
+    const editable =
+      output.getAttribute("contenteditable");
+
 
     if (editable === "true") {
       output.setAttribute(
@@ -168,7 +198,8 @@ editBtn.addEventListener(
         "false"
       );
 
-      editBtn.textContent = "✏️ Edit";
+      editBtn.textContent =
+        "✏️ Edit";
 
       output.classList.remove(
         "ring-2",
@@ -180,6 +211,7 @@ editBtn.addEventListener(
         "Perubahan selesai.",
         "success"
       );
+
 
     } else {
       output.setAttribute(
@@ -195,7 +227,8 @@ editBtn.addEventListener(
         "p-2"
       );
 
-      editBtn.textContent = "💾 Selesai Edit";
+      editBtn.textContent =
+        "💾 Selesai Edit";
 
       showStatus(
         "Anda sekarang dapat mengedit isi surat.",
@@ -206,11 +239,15 @@ editBtn.addEventListener(
 );
 
 
+// =========================
 // CETAK -> BAYAR MIDTRANS
+// =========================
 printBtn.addEventListener(
   "click",
   async () => {
-    const text = output.innerText.trim();
+    const text =
+      output.innerText.trim();
+
 
     if (
       !text ||
@@ -225,26 +262,33 @@ printBtn.addEventListener(
       return;
     }
 
+
     try {
       printBtn.disabled = true;
-      printBtn.textContent = "⏳ Membuat pembayaran...";
+      printBtn.textContent =
+        "⏳ Membuat pembayaran...";
 
-const response = await fetch(
-  "/api/create-payment",
-  {
-    method: "POST",
 
-    headers: {
-      "Content-Type": "application/json"
-    },
+      const response =
+        await fetch(
+          "/api/create-payment",
+          {
+            method: "POST",
 
-    body: JSON.stringify({
-      surat_text: text
-    })
-  }
-);
+            headers: {
+              "Content-Type": "application/json"
+            },
 
-      const data = await response.json();
+            body: JSON.stringify({
+              surat_text: text
+            })
+          }
+        );
+
+
+      const data =
+        await response.json();
+
 
       if (!response.ok) {
         throw new Error(
@@ -253,26 +297,25 @@ const response = await fetch(
         );
       }
 
+
       if (!data.redirect_url) {
         throw new Error(
           "URL pembayaran tidak ditemukan."
         );
       }
 
-      // Simpan surat sementara
-     localStorage.setItem(
-        "suratSetelahBayar",
-        text
-      );
 
-      sessionStorage.setItem(
+      // Simpan order id saja
+      localStorage.setItem(
         "orderId",
         data.order_id || ""
       );
 
-      // Redirect langsung ke Midtrans
+
+      // Redirect ke Midtrans
       window.location.href =
         data.redirect_url;
+
 
     } catch (error) {
       console.error(error);
@@ -283,13 +326,16 @@ const response = await fetch(
       );
 
       printBtn.disabled = false;
-      printBtn.textContent = "🖨️ Cetak";
+      printBtn.textContent =
+        "🖨️ Cetak";
     }
   }
 );
 
 
+// =========================
 // TUTUP POPUP
+// =========================
 if (closePrintModal) {
   closePrintModal.addEventListener(
     "click",
@@ -301,7 +347,9 @@ if (closePrintModal) {
 }
 
 
-// TUTUP SAAT KLIK AREA GELAP
+// =========================
+// TUTUP POPUP SAAT KLIK AREA GELAP
+// =========================
 if (printModal) {
   printModal.addEventListener(
     "click",
@@ -315,7 +363,9 @@ if (printModal) {
 }
 
 
+// =========================
 // PDF
+// =========================
 if (pdfBtn) {
   pdfBtn.addEventListener(
     "click",
@@ -329,12 +379,16 @@ if (pdfBtn) {
 }
 
 
+// =========================
 // WORD
+// =========================
 if (wordBtn) {
   wordBtn.addEventListener(
     "click",
     () => {
-      const text = output.innerText.trim();
+      const text =
+        output.innerText.trim();
+
 
       if (
         !text ||
@@ -347,6 +401,7 @@ if (wordBtn) {
 
         return;
       }
+
 
       const htmlContent = `
         <!DOCTYPE html>
@@ -381,18 +436,27 @@ if (wordBtn) {
         </html>
       `;
 
-      const blob = new Blob(
-        ["\ufeff", htmlContent],
-        {
-          type: "application/msword"
-        }
-      );
 
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
+      const blob =
+        new Blob(
+          ["\ufeff", htmlContent],
+          {
+            type: "application/msword"
+          }
+        );
+
+
+      const url =
+        URL.createObjectURL(blob);
+
+
+      const link =
+        document.createElement("a");
+
 
       link.href = url;
       link.download = "surat.doc";
+
 
       document.body.appendChild(link);
 
@@ -402,8 +466,10 @@ if (wordBtn) {
 
       URL.revokeObjectURL(url);
 
+
       printModal.classList.add("hidden");
       printModal.classList.remove("flex");
+
 
       showStatus(
         "File Word berhasil dibuat.",
@@ -412,45 +478,102 @@ if (wordBtn) {
     }
   );
 }
-// PULIHKAN DRAFT SETELAH KEMBALI DARI MIDTRANS
-window.addEventListener("DOMContentLoaded", () => {
-  const savedSurat =
-    localStorage.getItem("suratSetelahBayar");
 
-  if (savedSurat) {
-    output.textContent = savedSurat;
 
-    showStatus(
-      "Draft surat berhasil dipulihkan setelah pembayaran.",
-      "success"
-    );
-  }
+// =========================
+// KEMBALI DARI MIDTRANS
+// =========================
+window.addEventListener(
+  "DOMContentLoaded",
+  async () => {
+    const params =
+      new URLSearchParams(
+        window.location.search
+      );
 
-  const params =
-    new URLSearchParams(window.location.search);
 
-  const transactionStatus =
-    params.get("transaction_status");
+    const transactionStatus =
+      params.get("transaction_status");
 
-  const statusCode =
-    params.get("status_code");
+    const statusCode =
+      params.get("status_code");
 
-  if (
-    transactionStatus === "settlement" ||
-    statusCode === "200"
-  ) {
-    if (printModal) {
-      printModal.classList.remove("hidden");
-      printModal.classList.add("flex");
+    const orderIdFromUrl =
+      params.get("order_id");
+
+
+    if (
+      transactionStatus === "settlement" ||
+      statusCode === "200"
+    ) {
+      const orderId =
+        orderIdFromUrl ||
+        localStorage.getItem("orderId");
+
+
+      if (!orderId) {
+        showStatus(
+          "Order ID tidak ditemukan.",
+          "error"
+        );
+
+        return;
+      }
+
+
+      try {
+        const response =
+          await fetch(
+            `/api/get-payment?order_id=${encodeURIComponent(orderId)}`
+          );
+
+
+        const data =
+          await response.json();
+
+
+        if (!response.ok) {
+          throw new Error(
+            data.error ||
+            "Gagal mengambil draft surat."
+          );
+        }
+
+
+        if (data.surat_text) {
+          output.textContent =
+            data.surat_text;
+        }
+
+
+        if (printModal) {
+          printModal.classList.remove("hidden");
+          printModal.classList.add("flex");
+        }
+
+
+        showStatus(
+          "Pembayaran berhasil. Silakan pilih Word atau PDF.",
+          "success"
+        );
+
+
+      } catch (error) {
+        console.error(error);
+
+        showStatus(
+          error.message,
+          "error"
+        );
+      }
     }
-
-    showStatus(
-      "Pembayaran berhasil. Silakan pilih Word atau PDF.",
-      "success"
-    );
   }
-});
+);
 
+
+// =========================
+// ESCAPE HTML
+// =========================
 function escapeHtml(text) {
   return text
     .replace(/&/g, "&amp;")
