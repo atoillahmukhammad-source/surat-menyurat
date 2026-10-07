@@ -1,19 +1,19 @@
 const generateBtn = document.getElementById("generateBtn");
+const regenerateBtn = document.getElementById("regenerateBtn");
+
 const output = document.getElementById("output");
+
 const copyBtn = document.getElementById("copyBtn");
+const editBtn = document.getElementById("editBtn");
+const printBtn = document.getElementById("printBtn");
+
 const statusBox = document.getElementById("status");
+
 
 function showStatus(message, type = "info") {
 
-  statusBox.classList.remove(
-    "hidden",
-    "bg-red-100",
-    "text-red-700",
-    "bg-green-100",
-    "text-green-700",
-    "bg-blue-100",
-    "text-blue-700"
-  );
+  statusBox.className =
+    "mt-4 p-3 rounded-lg text-sm";
 
   if (type === "error") {
     statusBox.classList.add(
@@ -40,7 +40,7 @@ function showStatus(message, type = "info") {
 }
 
 
-generateBtn.addEventListener("click", async () => {
+async function generateSurat() {
 
   const jenis =
     document.getElementById("jenis").value;
@@ -58,7 +58,7 @@ generateBtn.addEventListener("click", async () => {
   if (!nama || !penerima || !detail) {
 
     showStatus(
-      "Mohon lengkapi nama, penerima, dan detail surat.",
+      "Mohon lengkapi semua data terlebih dahulu.",
       "error"
     );
 
@@ -69,15 +69,10 @@ generateBtn.addEventListener("click", async () => {
   generateBtn.disabled = true;
 
   generateBtn.textContent =
-    "⏳ Gemini sedang menyusun surat...";
+    "⏳ AI sedang menyusun surat...";
 
   output.textContent =
     "Sedang menyusun surat...";
-
-  showStatus(
-    "Permintaan sedang diproses oleh Gemini.",
-    "info"
-  );
 
 
   try {
@@ -101,7 +96,8 @@ generateBtn.addEventListener("click", async () => {
       });
 
 
-    const data = await response.json();
+    const data =
+      await response.json();
 
 
     if (!response.ok) {
@@ -149,48 +145,134 @@ generateBtn.addEventListener("click", async () => {
 
   }
 
-});
+}
 
 
-copyBtn.addEventListener("click", async () => {
 
-  const text =
-    output.textContent.trim();
+generateBtn.addEventListener(
+  "click",
+  generateSurat
+);
 
 
-  if (
-    !text ||
-    text === "Hasil surat akan muncul di sini..." ||
-    text === "Surat belum berhasil dibuat."
-  ) {
+regenerateBtn.addEventListener(
+  "click",
+  generateSurat
+);
 
-    showStatus(
-      "Belum ada surat yang dapat disalin.",
-      "error"
-    );
 
-    return;
+
+copyBtn.addEventListener(
+  "click",
+  async () => {
+
+    const text =
+      output.innerText.trim();
+
+    if (
+      !text ||
+      text === "Hasil surat akan muncul di sini..."
+    ) {
+
+      showStatus(
+        "Belum ada surat untuk disalin.",
+        "error"
+      );
+
+      return;
+    }
+
+
+    try {
+
+      await navigator.clipboard.writeText(text);
+
+      showStatus(
+        "Surat berhasil disalin.",
+        "success"
+      );
+
+    }
+
+    catch {
+
+      showStatus(
+        "Gagal menyalin surat.",
+        "error"
+      );
+
+    }
+
   }
+);
 
 
-  try {
 
-    await navigator.clipboard.writeText(text);
+editBtn.addEventListener(
+  "click",
+  () => {
 
-    showStatus(
-      "Surat berhasil disalin.",
-      "success"
-    );
+    const editable =
+      output.getAttribute("contenteditable");
+
+    if (editable === "true") {
+
+      output.setAttribute(
+        "contenteditable",
+        "false"
+      );
+
+      editBtn.textContent =
+        "✏️ Edit";
+
+      output.classList.remove(
+        "ring-2",
+        "ring-blue-300",
+        "p-2"
+      );
+
+      showStatus(
+        "Perubahan selesai.",
+        "success"
+      );
+
+    }
+
+    else {
+
+      output.setAttribute(
+        "contenteditable",
+        "true"
+      );
+
+      output.focus();
+
+      output.classList.add(
+        "ring-2",
+        "ring-blue-300",
+        "p-2"
+      );
+
+      editBtn.textContent =
+        "💾 Selesai Edit";
+
+      showStatus(
+        "Anda sekarang dapat mengedit isi surat.",
+        "info"
+      );
+
+    }
 
   }
+);
 
-  catch (error) {
 
-    showStatus(
-      "Gagal menyalin surat.",
-      "error"
-    );
+
+printBtn.addEventListener(
+  "click",
+  () => {
+
+    window.print();
 
   }
-
-});
+);
