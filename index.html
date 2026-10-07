@@ -16,6 +16,7 @@
       background: white;
       padding: 20mm 22mm;
       box-sizing: border-box;
+      position: relative;
     }
 
     #output {
@@ -29,9 +30,78 @@
       text-justify: inter-word;
     }
 
-    #signaturePad {
-      cursor: crosshair;
+    #printEditorPreview {
+      width: 210mm;
+      max-width: 100%;
+      min-height: 297mm;
+      background: white;
+      padding: 20mm 22mm;
+      box-sizing: border-box;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #printEditorText {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      color: #111827;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      text-align: justify;
+      text-justify: inter-word;
+    }
+
+    #signatureLayer {
+      position: absolute;
+      left: 80px;
+      top: 650px;
+      width: 150px;
+      z-index: 20;
+      cursor: move;
+      user-select: none;
+      display: none;
+    }
+
+    #signatureLayer img {
+      width: 100%;
+      height: auto;
+      display: block;
+      pointer-events: none;
+    }
+
+    #signatureResizeHandle {
+      position: absolute;
+      right: -8px;
+      bottom: -8px;
+      width: 18px;
+      height: 18px;
+      background: #2563eb;
+      border: 2px solid white;
+      border-radius: 999px;
+      cursor: nwse-resize;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+    }
+
+    #signatureDeleteBtn {
+      position: absolute;
+      right: -10px;
+      top: -10px;
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      background: #dc2626;
+      color: white;
+      font-size: 12px;
+      line-height: 24px;
+      text-align: center;
+      cursor: pointer;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+    }
+
+    #signatureCanvas {
       touch-action: none;
+      cursor: crosshair;
     }
 
     @page {
@@ -60,15 +130,12 @@
         position: absolute !important;
         left: 0 !important;
         top: 0 !important;
-
         width: 100% !important;
         max-width: none !important;
         min-height: 0 !important;
         height: auto !important;
-
         margin: 0 !important;
         padding: 0 !important;
-
         box-shadow: none !important;
         border: none !important;
         background: white !important;
@@ -78,24 +145,18 @@
         font-family: Arial, Helvetica, sans-serif !important;
         font-size: 11.5pt !important;
         line-height: 1.5 !important;
-
         color: black !important;
-
         margin: 0 !important;
         padding: 0 !important;
-
         white-space: pre-wrap !important;
         text-align: justify !important;
         text-justify: inter-word !important;
       }
 
-      #signaturePreviewArea {
-        visibility: visible !important;
-      }
-
       .no-print,
       #status,
-      #printModal {
+      #printModal,
+      #documentEditorModal {
         display: none !important;
       }
     }
@@ -109,11 +170,11 @@
     <!-- HEADER -->
     <header class="no-print mb-6">
       <h1 class="text-3xl font-bold text-slate-900">
-        📄 Surat Menyurat AI
+        📄 Surat Generator
       </h1>
 
       <p class="text-slate-500 mt-1">
-        Buat surat profesional dengan bantuan AI
+        Buat surat cepat, mudah disesuaikan dan tinggal cetak
       </p>
     </header>
 
@@ -145,7 +206,6 @@
           <option>Surat Dinas</option>
         </select>
 
-
         <label class="block text-sm font-medium mb-1">
           Nama Pengirim
         </label>
@@ -156,7 +216,6 @@
           placeholder="Contoh: Samsul Hadi"
           class="w-full border border-slate-300 rounded-lg p-3 mb-4"
         >
-
 
         <label class="block text-sm font-medium mb-1">
           Penerima / Instansi
@@ -169,81 +228,23 @@
           class="w-full border border-slate-300 rounded-lg p-3 mb-4"
         >
 
-
         <label class="block text-sm font-medium mb-1">
-          Detail Surat
+          Penjelasan dan Rincian Surat
         </label>
 
         <textarea
           id="detail"
-          rows="8"
+          rows="10"
           placeholder="Tuliskan informasi penting yang harus dimuat dalam surat..."
           class="w-full border border-slate-300 rounded-lg p-3 mb-5 resize-y"
         ></textarea>
-
-
-        <!-- TANDA TANGAN -->
-        <div class="mb-5">
-
-          <div class="flex items-center justify-between mb-2">
-
-            <label class="block text-sm font-medium">
-              Tanda Tangan
-            </label>
-
-            <span class="text-xs text-slate-400">
-              Opsional
-            </span>
-
-          </div>
-
-          <div
-            class="border border-slate-300 rounded-xl p-3 bg-slate-50"
-          >
-
-            <canvas
-              id="signaturePad"
-              width="600"
-              height="220"
-              class="w-full h-[180px] bg-white border border-dashed border-slate-300 rounded-lg"
-            ></canvas>
-
-          </div>
-
-          <div class="flex gap-2 mt-2">
-
-            <button
-              type="button"
-              id="clearSignatureBtn"
-              class="px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white hover:bg-slate-50"
-            >
-              🧹 Hapus
-            </button>
-
-            <button
-              type="button"
-              id="useSignatureBtn"
-              class="px-3 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-900"
-            >
-              ✓ Gunakan Tanda Tangan
-            </button>
-
-          </div>
-
-          <p class="text-xs text-slate-500 mt-2">
-            Gunakan mouse atau jari untuk membuat tanda tangan.
-          </p>
-
-        </div>
-
 
         <button
           id="generateBtn"
           class="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-medium py-3 rounded-lg transition"
         >
-          ✨ Buat Surat dengan AI
+          ✨ Buat Draft Surat
         </button>
-
 
         <div
           id="status"
@@ -256,7 +257,6 @@
       <!-- HASIL -->
       <section>
 
-        <!-- TOOLBAR -->
         <div class="no-print flex flex-wrap gap-2 mb-4">
 
           <button
@@ -289,36 +289,17 @@
 
         </div>
 
-
-        <!-- PREVIEW -->
         <div class="overflow-auto pb-6">
 
           <article
             id="suratPreview"
             class="mx-auto shadow-md"
           >
-
             <div
               id="output"
               contenteditable="false"
               spellcheck="true"
             >Hasil surat akan muncul di sini...</div>
-
-
-            <!-- PREVIEW TANDA TANGAN -->
-            <div
-              id="signaturePreviewArea"
-              class="hidden mt-4"
-            >
-
-              <img
-                id="signaturePreview"
-                alt="Tanda tangan"
-                class="w-36 h-auto object-contain"
-              >
-
-            </div>
-
           </article>
 
         </div>
@@ -330,7 +311,177 @@
   </div>
 
 
-  <!-- POPUP CETAK -->
+  <!-- MODAL PERSIAPAN DOKUMEN -->
+  <div
+    id="documentEditorModal"
+    class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 no-print p-4"
+  >
+
+    <div
+      class="bg-slate-100 rounded-2xl shadow-2xl w-full max-w-7xl h-[94vh] flex flex-col overflow-hidden"
+    >
+
+      <!-- HEADER -->
+      <div class="bg-white border-b px-6 py-4 flex items-center justify-between">
+
+        <div>
+          <h2 class="text-xl font-semibold">
+            Persiapan Dokumen
+          </h2>
+
+          <p class="text-sm text-slate-500 mt-1">
+            Tambahkan tanda tangan dan atur posisinya sebelum mencetak.
+          </p>
+        </div>
+
+        <button
+          id="closeDocumentEditor"
+          class="text-slate-400 hover:text-slate-800 text-2xl"
+        >
+          ×
+        </button>
+
+      </div>
+
+
+      <div class="flex-1 grid lg:grid-cols-[320px_1fr] overflow-hidden">
+
+        <!-- PANEL KIRI -->
+        <aside
+          class="bg-white border-r p-5 overflow-y-auto"
+        >
+
+          <h3 class="font-semibold mb-4">
+            Tanda Tangan
+          </h3>
+
+          <p class="text-sm text-slate-500 mb-3">
+            Gambar tanda tangan menggunakan mouse atau jari.
+          </p>
+
+          <div class="border rounded-xl p-3 bg-slate-50">
+
+            <canvas
+              id="signatureCanvas"
+              width="600"
+              height="240"
+              class="w-full h-[160px] bg-white border border-dashed border-slate-300 rounded-lg"
+            ></canvas>
+
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 mt-3">
+
+            <button
+              id="clearSignatureCanvas"
+              type="button"
+              class="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white hover:bg-slate-50"
+            >
+              🧹 Hapus
+            </button>
+
+            <button
+              id="addSignatureToDocument"
+              type="button"
+              class="bg-slate-800 text-white rounded-lg px-3 py-2 text-sm hover:bg-slate-900"
+            >
+              ✓ Tambahkan
+            </button>
+
+          </div>
+
+
+          <div class="border-t mt-6 pt-5">
+
+            <h3 class="font-semibold mb-3">
+              Pengaturan
+            </h3>
+
+            <p class="text-xs text-slate-500 leading-relaxed">
+              Setelah tanda tangan ditambahkan ke dokumen, Anda dapat:
+            </p>
+
+            <ul class="text-xs text-slate-500 mt-2 space-y-1">
+              <li>• Geser bebas ke posisi mana pun</li>
+              <li>• Letakkan di atas teks</li>
+              <li>• Perbesar atau perkecil</li>
+              <li>• Hapus dan gambar ulang</li>
+            </ul>
+
+          </div>
+
+        </aside>
+
+
+        <!-- AREA PREVIEW -->
+        <main class="overflow-auto p-6">
+
+          <div
+            id="printEditorPreview"
+            class="mx-auto shadow-lg"
+          >
+
+            <div
+              id="printEditorText"
+            ></div>
+
+
+            <!-- LAYER TANDA TANGAN -->
+            <div id="signatureLayer">
+
+              <img
+                id="editorSignatureImage"
+                alt="Tanda tangan"
+              >
+
+              <div
+                id="signatureDeleteBtn"
+                title="Hapus tanda tangan"
+              >
+                ×
+              </div>
+
+              <div
+                id="signatureResizeHandle"
+                title="Ubah ukuran"
+              ></div>
+
+            </div>
+
+          </div>
+
+        </main>
+
+      </div>
+
+
+      <!-- FOOTER -->
+      <div
+        class="bg-white border-t px-6 py-4 flex items-center justify-end gap-3"
+      >
+
+        <button
+          id="cancelDocumentEditor"
+          class="border border-slate-300 rounded-lg px-5 py-2.5 bg-white hover:bg-slate-50"
+        >
+          Batal
+        </button>
+
+        <button
+          id="continuePrintBtn"
+          class="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-6 py-2.5 font-medium"
+        >
+          Lanjut Cetak
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- POPUP FORMAT SETELAH AKSES TERBUKA -->
   <div
     id="printModal"
     class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 no-print"
@@ -343,7 +494,7 @@
       </h3>
 
       <p class="text-sm text-slate-500 mb-5">
-        Akses Word dan PDF berlaku untuk surat ini setelah pembayaran berhasil.
+        Pilih format surat yang ingin digunakan.
       </p>
 
       <div class="space-y-3">
