@@ -55,7 +55,6 @@ async function generateSurat() {
   const detail =
     document.getElementById("detail").value.trim();
 
-
   if (!nama || !penerima || !detail) {
     showStatus(
       "Mohon lengkapi semua data terlebih dahulu.",
@@ -64,14 +63,12 @@ async function generateSurat() {
     return;
   }
 
-
   generateBtn.disabled = true;
   generateBtn.textContent =
     "⏳ AI sedang menyusun surat...";
 
   output.textContent =
     "Sedang menyusun surat...";
-
 
   try {
     const response = await fetch("/api/generate", {
@@ -89,9 +86,7 @@ async function generateSurat() {
       })
     });
 
-
     const data = await response.json();
-
 
     if (!response.ok) {
       throw new Error(
@@ -99,15 +94,17 @@ async function generateSurat() {
       );
     }
 
-
     output.textContent = data.result;
 
+    // DRAFT BARU = PEMBAYARAN DI-RESET
+    localStorage.removeItem("paymentUnlocked");
+    localStorage.removeItem("paidOrderId");
+    localStorage.removeItem("orderId");
 
     showStatus(
       "Surat berhasil dibuat.",
       "success"
     );
-
 
   } catch (error) {
     console.error(error);
@@ -119,7 +116,6 @@ async function generateSurat() {
       error.message,
       "error"
     );
-
 
   } finally {
     generateBtn.disabled = false;
@@ -163,7 +159,6 @@ copyBtn.addEventListener(
       return;
     }
 
-
     try {
       await navigator.clipboard.writeText(text);
 
@@ -191,7 +186,6 @@ editBtn.addEventListener(
     const editable =
       output.getAttribute("contenteditable");
 
-
     if (editable === "true") {
       output.setAttribute(
         "contenteditable",
@@ -211,7 +205,6 @@ editBtn.addEventListener(
         "Perubahan selesai.",
         "success"
       );
-
 
     } else {
       output.setAttribute(
@@ -240,14 +233,13 @@ editBtn.addEventListener(
 
 
 // =========================
-// CETAK -> BAYAR MIDTRANS
+// CETAK
 // =========================
 printBtn.addEventListener(
   "click",
   async () => {
     const text =
       output.innerText.trim();
-
 
     if (
       !text ||
@@ -262,12 +254,27 @@ printBtn.addEventListener(
       return;
     }
 
+    // JIKA SUDAH BAYAR UNTUK DRAFT INI
+    if (
+      localStorage.getItem("paymentUnlocked") === "true"
+    ) {
+      if (printModal) {
+        printModal.classList.remove("hidden");
+        printModal.classList.add("flex");
+      }
+
+      showStatus(
+        "Akses Word dan PDF sudah terbuka.",
+        "success"
+      );
+
+      return;
+    }
 
     try {
       printBtn.disabled = true;
       printBtn.textContent =
         "⏳ Membuat pembayaran...";
-
 
       const response =
         await fetch(
@@ -285,10 +292,8 @@ printBtn.addEventListener(
           }
         );
 
-
       const data =
         await response.json();
-
 
       if (!response.ok) {
         throw new Error(
@@ -297,25 +302,21 @@ printBtn.addEventListener(
         );
       }
 
-
       if (!data.redirect_url) {
         throw new Error(
           "URL pembayaran tidak ditemukan."
         );
       }
 
-
-      // Simpan order id saja
+      // SIMPAN ORDER ID
       localStorage.setItem(
         "orderId",
         data.order_id || ""
       );
 
-
-      // Redirect ke Midtrans
+      // KE MIDTRANS
       window.location.href =
         data.redirect_url;
-
 
     } catch (error) {
       console.error(error);
@@ -389,7 +390,6 @@ if (wordBtn) {
       const text =
         output.innerText.trim();
 
-
       if (
         !text ||
         text === "Hasil surat akan muncul di sini..."
@@ -401,7 +401,6 @@ if (wordBtn) {
 
         return;
       }
-
 
       const htmlContent = `
         <!DOCTYPE html>
@@ -436,7 +435,6 @@ if (wordBtn) {
         </html>
       `;
 
-
       const blob =
         new Blob(
           ["\ufeff", htmlContent],
@@ -445,18 +443,14 @@ if (wordBtn) {
           }
         );
 
-
       const url =
         URL.createObjectURL(blob);
-
 
       const link =
         document.createElement("a");
 
-
       link.href = url;
       link.download = "surat.doc";
-
 
       document.body.appendChild(link);
 
@@ -466,10 +460,8 @@ if (wordBtn) {
 
       URL.revokeObjectURL(url);
 
-
       printModal.classList.add("hidden");
       printModal.classList.remove("flex");
-
 
       showStatus(
         "File Word berhasil dibuat.",
@@ -491,7 +483,6 @@ window.addEventListener(
         window.location.search
       );
 
-
     const transactionStatus =
       params.get("transaction_status");
 
@@ -501,7 +492,6 @@ window.addEventListener(
     const orderIdFromUrl =
       params.get("order_id");
 
-
     if (
       transactionStatus === "settlement" ||
       statusCode === "200"
@@ -509,7 +499,6 @@ window.addEventListener(
       const orderId =
         orderIdFromUrl ||
         localStorage.getItem("orderId");
-
 
       if (!orderId) {
         showStatus(
@@ -520,17 +509,14 @@ window.addEventListener(
         return;
       }
 
-
       try {
         const response =
           await fetch(
             `/api/get-payment?order_id=${encodeURIComponent(orderId)}`
           );
 
-
         const data =
           await response.json();
-
 
         if (!response.ok) {
           throw new Error(
@@ -539,24 +525,31 @@ window.addEventListener(
           );
         }
 
-
         if (data.surat_text) {
           output.textContent =
             data.surat_text;
         }
 
+        // BUKA AKSES UNTUK DRAFT INI
+        localStorage.setItem(
+          "paymentUnlocked",
+          "true"
+        );
+
+        localStorage.setItem(
+          "paidOrderId",
+          orderId
+        );
 
         if (printModal) {
           printModal.classList.remove("hidden");
           printModal.classList.add("flex");
         }
 
-
         showStatus(
-          "Pembayaran berhasil. Silakan pilih Word atau PDF.",
+          "Pembayaran berhasil. Word dan PDF sudah terbuka untuk surat ini.",
           "success"
         );
-
 
       } catch (error) {
         console.error(error);
