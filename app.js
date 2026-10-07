@@ -256,7 +256,7 @@ printBtn.addEventListener(
       }
 
       // Simpan surat sementara
-      sessionStorage.setItem(
+     localStorage.setItem(
         "suratSetelahBayar",
         text
       );
@@ -411,7 +411,7 @@ if (wordBtn) {
 // PULIHKAN DRAFT SETELAH KEMBALI DARI MIDTRANS
 window.addEventListener("DOMContentLoaded", () => {
   const savedSurat =
-    sessionStorage.getItem("suratSetelahBayar");
+    localStorage.getItem("suratSetelahBayar");
 
   if (savedSurat) {
     output.textContent = savedSurat;
