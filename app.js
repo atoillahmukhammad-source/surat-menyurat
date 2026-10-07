@@ -7,11 +7,15 @@ const copyBtn = document.getElementById("copyBtn");
 const editBtn = document.getElementById("editBtn");
 const printBtn = document.getElementById("printBtn");
 
+const printModal = document.getElementById("printModal");
+const closePrintModal = document.getElementById("closePrintModal");
+const wordBtn = document.getElementById("wordBtn");
+const pdfBtn = document.getElementById("pdfBtn");
+
 const statusBox = document.getElementById("status");
 
 
 function showStatus(message, type = "info") {
-
   statusBox.className =
     "mt-4 p-3 rounded-lg text-sm";
 
@@ -20,16 +24,12 @@ function showStatus(message, type = "info") {
       "bg-red-100",
       "text-red-700"
     );
-  }
-
-  else if (type === "success") {
+  } else if (type === "success") {
     statusBox.classList.add(
       "bg-green-100",
       "text-green-700"
     );
-  }
-
-  else {
+  } else {
     statusBox.classList.add(
       "bg-blue-100",
       "text-blue-700"
@@ -41,7 +41,6 @@ function showStatus(message, type = "info") {
 
 
 async function generateSurat() {
-
   const jenis =
     document.getElementById("jenis").value;
 
@@ -56,7 +55,6 @@ async function generateSurat() {
 
 
   if (!nama || !penerima || !detail) {
-
     showStatus(
       "Mohon lengkapi semua data terlebih dahulu.",
       "error"
@@ -76,10 +74,8 @@ async function generateSurat() {
 
 
   try {
-
     const response =
       await fetch("/api/generate", {
-
         method: "POST",
 
         headers: {
@@ -92,7 +88,6 @@ async function generateSurat() {
           penerima,
           detail
         })
-
       });
 
 
@@ -101,12 +96,10 @@ async function generateSurat() {
 
 
     if (!response.ok) {
-
       throw new Error(
         data.error ||
         "Gagal membuat surat."
       );
-
     }
 
 
@@ -120,10 +113,7 @@ async function generateSurat() {
     );
 
 
-  }
-
-  catch (error) {
-
+  } catch (error) {
     console.error(error);
 
     output.textContent =
@@ -134,19 +124,14 @@ async function generateSurat() {
       "error"
     );
 
-  }
 
-  finally {
-
+  } finally {
     generateBtn.disabled = false;
 
     generateBtn.textContent =
       "✨ Buat Surat dengan AI";
-
   }
-
 }
-
 
 
 generateBtn.addEventListener(
@@ -161,11 +146,10 @@ regenerateBtn.addEventListener(
 );
 
 
-
+// SALIN
 copyBtn.addEventListener(
   "click",
   async () => {
-
     const text =
       output.innerText.trim();
 
@@ -173,7 +157,6 @@ copyBtn.addEventListener(
       !text ||
       text === "Hasil surat akan muncul di sini..."
     ) {
-
       showStatus(
         "Belum ada surat untuk disalin.",
         "error"
@@ -182,9 +165,7 @@ copyBtn.addEventListener(
       return;
     }
 
-
     try {
-
       await navigator.clipboard.writeText(text);
 
       showStatus(
@@ -192,31 +173,24 @@ copyBtn.addEventListener(
         "success"
       );
 
-    }
-
-    catch {
-
+    } catch {
       showStatus(
         "Gagal menyalin surat.",
         "error"
       );
-
     }
-
   }
 );
 
 
-
+// EDIT
 editBtn.addEventListener(
   "click",
   () => {
-
     const editable =
       output.getAttribute("contenteditable");
 
     if (editable === "true") {
-
       output.setAttribute(
         "contenteditable",
         "false"
@@ -236,10 +210,7 @@ editBtn.addEventListener(
         "success"
       );
 
-    }
-
-    else {
-
+    } else {
       output.setAttribute(
         "contenteditable",
         "true"
@@ -260,19 +231,156 @@ editBtn.addEventListener(
         "Anda sekarang dapat mengedit isi surat.",
         "info"
       );
-
     }
-
   }
 );
 
 
-
+// BUKA POPUP CETAK
 printBtn.addEventListener(
   "click",
   () => {
-
-    window.print();
-
+    printModal.classList.remove("hidden");
+    printModal.classList.add("flex");
   }
 );
+
+
+// TUTUP POPUP
+closePrintModal.addEventListener(
+  "click",
+  () => {
+    printModal.classList.add("hidden");
+    printModal.classList.remove("flex");
+  }
+);
+
+
+// TUTUP SAAT KLIK AREA GELAP
+printModal.addEventListener(
+  "click",
+  (event) => {
+    if (event.target === printModal) {
+      printModal.classList.add("hidden");
+      printModal.classList.remove("flex");
+    }
+  }
+);
+
+
+// PDF
+pdfBtn.addEventListener(
+  "click",
+  () => {
+    printModal.classList.add("hidden");
+    printModal.classList.remove("flex");
+
+    window.print();
+  }
+);
+
+
+// WORD
+wordBtn.addEventListener(
+  "click",
+  () => {
+    const text =
+      output.innerText.trim();
+
+    if (
+      !text ||
+      text === "Hasil surat akan muncul di sini..."
+    ) {
+      showStatus(
+        "Belum ada surat untuk diunduh.",
+        "error"
+      );
+
+      return;
+    }
+
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          @page {
+            size: A4;
+            margin: 2cm;
+          }
+
+          body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 11pt;
+            line-height: 1.5;
+          }
+
+          .surat {
+            white-space: pre-wrap;
+            text-align: justify;
+          }
+        </style>
+      </head>
+
+      <body>
+        <div class="surat">
+          ${escapeHtml(text).replace(/\n/g, "<br>")}
+        </div>
+      </body>
+      </html>
+    `;
+
+
+    const blob =
+      new Blob(
+        ["\ufeff", htmlContent],
+        {
+          type:
+            "application/msword"
+        }
+      );
+
+
+    const url =
+      URL.createObjectURL(blob);
+
+
+    const link =
+      document.createElement("a");
+
+
+    link.href = url;
+
+    link.download =
+      "surat.doc";
+
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
+
+
+    printModal.classList.add("hidden");
+    printModal.classList.remove("flex");
+
+
+    showStatus(
+      "File Word berhasil dibuat.",
+      "success"
+    );
+  }
+);
+
+
+function escapeHtml(text) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
