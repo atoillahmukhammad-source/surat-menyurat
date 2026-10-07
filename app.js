@@ -14,6 +14,19 @@ const pdfBtn = document.getElementById("pdfBtn");
 
 const statusBox = document.getElementById("status");
 
+const signaturePad = document.getElementById("signaturePad");
+const clearSignatureBtn = document.getElementById("clearSignatureBtn");
+const useSignatureBtn = document.getElementById("useSignatureBtn");
+
+const signaturePreviewArea = document.getElementById("signaturePreviewArea");
+const signaturePreview = document.getElementById("signaturePreview");
+
+let signatureDataUrl = "";
+
+
+/* =========================
+   STATUS
+========================= */
 
 function showStatus(message, type = "info") {
   statusBox.className = "mt-4 p-3 rounded-lg text-sm";
@@ -39,9 +52,173 @@ function showStatus(message, type = "info") {
 }
 
 
-// =========================
-// GENERATE SURAT
-// =========================
+/* =========================
+   SIGNATURE PAD
+========================= */
+
+if (signaturePad) {
+  const ctx = signaturePad.getContext("2d");
+
+  ctx.lineWidth = 3;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "#111827";
+
+  let drawing = false;
+  let lastX = 0;
+  let lastY = 0;
+
+
+  function getPosition(event) {
+    const rect = signaturePad.getBoundingClientRect();
+
+    const clientX =
+      event.touches
+        ? event.touches[0].clientX
+        : event.clientX;
+
+    const clientY =
+      event.touches
+        ? event.touches[0].clientY
+        : event.clientY;
+
+    return {
+      x:
+        (clientX - rect.left) *
+        (signaturePad.width / rect.width),
+
+      y:
+        (clientY - rect.top) *
+        (signaturePad.height / rect.height)
+    };
+  }
+
+
+  function startDrawing(event) {
+    event.preventDefault();
+
+    drawing = true;
+
+    const pos = getPosition(event);
+
+    lastX = pos.x;
+    lastY = pos.y;
+  }
+
+
+  function draw(event) {
+    if (!drawing) return;
+
+    event.preventDefault();
+
+    const pos = getPosition(event);
+
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+
+    lastX = pos.x;
+    lastY = pos.y;
+  }
+
+
+  function stopDrawing(event) {
+    if (event) {
+      event.preventDefault();
+    }
+
+    drawing = false;
+  }
+
+
+  signaturePad.addEventListener(
+    "mousedown",
+    startDrawing
+  );
+
+  signaturePad.addEventListener(
+    "mousemove",
+    draw
+  );
+
+  window.addEventListener(
+    "mouseup",
+    stopDrawing
+  );
+
+
+  signaturePad.addEventListener(
+    "touchstart",
+    startDrawing,
+    { passive: false }
+  );
+
+  signaturePad.addEventListener(
+    "touchmove",
+    draw,
+    { passive: false }
+  );
+
+  signaturePad.addEventListener(
+    "touchend",
+    stopDrawing,
+    { passive: false }
+  );
+
+
+  clearSignatureBtn.addEventListener(
+    "click",
+    () => {
+      ctx.clearRect(
+        0,
+        0,
+        signaturePad.width,
+        signaturePad.height
+      );
+
+      signatureDataUrl = "";
+
+      signaturePreview.src = "";
+
+      signaturePreviewArea.classList.add(
+        "hidden"
+      );
+
+      showStatus(
+        "Tanda tangan dihapus.",
+        "info"
+      );
+    }
+  );
+
+
+  useSignatureBtn.addEventListener(
+    "click",
+    () => {
+      signatureDataUrl =
+        signaturePad.toDataURL("image/png");
+
+      signaturePreview.src =
+        signatureDataUrl;
+
+      signaturePreviewArea.classList.remove(
+        "hidden"
+      );
+
+      showStatus(
+        "Tanda tangan digunakan.",
+        "success"
+      );
+    }
+  );
+}
+
+
+/* =========================
+   GENERATE SURAT
+========================= */
+
 async function generateSurat() {
   const jenis =
     document.getElementById("jenis").value;
@@ -55,56 +232,71 @@ async function generateSurat() {
   const detail =
     document.getElementById("detail").value.trim();
 
+
   if (!nama || !penerima || !detail) {
     showStatus(
       "Mohon lengkapi semua data terlebih dahulu.",
       "error"
     );
+
     return;
   }
 
+
   generateBtn.disabled = true;
+
   generateBtn.textContent =
     "⏳ AI sedang menyusun surat...";
 
   output.textContent =
     "Sedang menyusun surat...";
 
+
   try {
-    const response = await fetch("/api/generate", {
-      method: "POST",
+    const response =
+      await fetch("/api/generate", {
+        method: "POST",
 
-      headers: {
-        "Content-Type": "application/json"
-      },
+        headers: {
+          "Content-Type": "application/json"
+        },
 
-      body: JSON.stringify({
-        jenis,
-        nama,
-        penerima,
-        detail
-      })
-    });
+        body: JSON.stringify({
+          jenis,
+          nama,
+          penerima,
+          detail
+        })
+      });
 
-    const data = await response.json();
+
+    const data =
+      await response.json();
+
 
     if (!response.ok) {
       throw new Error(
-        data.error || "Gagal membuat surat."
+        data.error ||
+        "Gagal membuat surat."
       );
     }
 
-    output.textContent = data.result;
 
-    // DRAFT BARU = PEMBAYARAN DI-RESET
+    output.textContent =
+      data.result;
+
+
+    // DRAFT BARU = RESET AKSES BAYAR
     localStorage.removeItem("paymentUnlocked");
     localStorage.removeItem("paidOrderId");
     localStorage.removeItem("orderId");
+
 
     showStatus(
       "Surat berhasil dibuat.",
       "success"
     );
+
 
   } catch (error) {
     console.error(error);
@@ -117,8 +309,10 @@ async function generateSurat() {
       "error"
     );
 
+
   } finally {
     generateBtn.disabled = false;
+
     generateBtn.textContent =
       "✨ Buat Surat dengan AI";
   }
@@ -137,9 +331,10 @@ regenerateBtn.addEventListener(
 );
 
 
-// =========================
-// SALIN
-// =========================
+/* =========================
+   SALIN
+========================= */
+
 copyBtn.addEventListener(
   "click",
   async () => {
@@ -159,6 +354,7 @@ copyBtn.addEventListener(
       return;
     }
 
+
     try {
       await navigator.clipboard.writeText(text);
 
@@ -177,14 +373,16 @@ copyBtn.addEventListener(
 );
 
 
-// =========================
-// EDIT
-// =========================
+/* =========================
+   EDIT
+========================= */
+
 editBtn.addEventListener(
   "click",
   () => {
     const editable =
       output.getAttribute("contenteditable");
+
 
     if (editable === "true") {
       output.setAttribute(
@@ -205,6 +403,7 @@ editBtn.addEventListener(
         "Perubahan selesai.",
         "success"
       );
+
 
     } else {
       output.setAttribute(
@@ -232,14 +431,16 @@ editBtn.addEventListener(
 );
 
 
-// =========================
-// CETAK
-// =========================
+/* =========================
+   CETAK / BAYAR
+========================= */
+
 printBtn.addEventListener(
   "click",
   async () => {
     const text =
       output.innerText.trim();
+
 
     if (
       !text ||
@@ -254,7 +455,8 @@ printBtn.addEventListener(
       return;
     }
 
-    // JIKA SUDAH BAYAR UNTUK DRAFT INI
+
+    // SUDAH BAYAR DRAFT INI
     if (
       localStorage.getItem("paymentUnlocked") === "true"
     ) {
@@ -271,10 +473,13 @@ printBtn.addEventListener(
       return;
     }
 
+
     try {
       printBtn.disabled = true;
+
       printBtn.textContent =
         "⏳ Membuat pembayaran...";
+
 
       const response =
         await fetch(
@@ -283,7 +488,8 @@ printBtn.addEventListener(
             method: "POST",
 
             headers: {
-              "Content-Type": "application/json"
+              "Content-Type":
+                "application/json"
             },
 
             body: JSON.stringify({
@@ -292,8 +498,10 @@ printBtn.addEventListener(
           }
         );
 
+
       const data =
         await response.json();
+
 
       if (!response.ok) {
         throw new Error(
@@ -302,21 +510,23 @@ printBtn.addEventListener(
         );
       }
 
+
       if (!data.redirect_url) {
         throw new Error(
           "URL pembayaran tidak ditemukan."
         );
       }
 
-      // SIMPAN ORDER ID
+
       localStorage.setItem(
         "orderId",
         data.order_id || ""
       );
 
-      // KE MIDTRANS
+
       window.location.href =
         data.redirect_url;
+
 
     } catch (error) {
       console.error(error);
@@ -327,6 +537,7 @@ printBtn.addEventListener(
       );
 
       printBtn.disabled = false;
+
       printBtn.textContent =
         "🖨️ Cetak";
     }
@@ -334,9 +545,10 @@ printBtn.addEventListener(
 );
 
 
-// =========================
-// TUTUP POPUP
-// =========================
+/* =========================
+   MODAL
+========================= */
+
 if (closePrintModal) {
   closePrintModal.addEventListener(
     "click",
@@ -348,9 +560,6 @@ if (closePrintModal) {
 }
 
 
-// =========================
-// TUTUP POPUP SAAT KLIK AREA GELAP
-// =========================
 if (printModal) {
   printModal.addEventListener(
     "click",
@@ -364,9 +573,10 @@ if (printModal) {
 }
 
 
-// =========================
-// PDF
-// =========================
+/* =========================
+   PDF
+========================= */
+
 if (pdfBtn) {
   pdfBtn.addEventListener(
     "click",
@@ -380,15 +590,17 @@ if (pdfBtn) {
 }
 
 
-// =========================
-// WORD
-// =========================
+/* =========================
+   WORD
+========================= */
+
 if (wordBtn) {
   wordBtn.addEventListener(
     "click",
     () => {
       const text =
         output.innerText.trim();
+
 
       if (
         !text ||
@@ -402,21 +614,46 @@ if (wordBtn) {
         return;
       }
 
+
+      let signatureHtml = "";
+
+      if (signatureDataUrl) {
+        signatureHtml = `
+          <div style="margin-top:12px;">
+            <img
+              src="${signatureDataUrl}"
+              style="
+                width:130px;
+                height:auto;
+              "
+            />
+          </div>
+        `;
+      }
+
+
       const htmlContent = `
         <!DOCTYPE html>
         <html>
+
         <head>
           <meta charset="UTF-8">
 
           <style>
+
             @page {
               size: A4;
               margin: 2cm;
             }
 
             body {
-              font-family: Arial, Helvetica, sans-serif;
+              font-family:
+                Arial,
+                Helvetica,
+                sans-serif;
+
               font-size: 11pt;
+
               line-height: 1.5;
             }
 
@@ -424,33 +661,47 @@ if (wordBtn) {
               white-space: pre-wrap;
               text-align: justify;
             }
+
           </style>
+
         </head>
 
         <body>
+
           <div class="surat">
             ${escapeHtml(text).replace(/\n/g, "<br>")}
           </div>
+
+          ${signatureHtml}
+
         </body>
+
         </html>
       `;
+
 
       const blob =
         new Blob(
           ["\ufeff", htmlContent],
           {
-            type: "application/msword"
+            type:
+              "application/msword"
           }
         );
+
 
       const url =
         URL.createObjectURL(blob);
 
+
       const link =
         document.createElement("a");
 
+
       link.href = url;
+
       link.download = "surat.doc";
+
 
       document.body.appendChild(link);
 
@@ -460,8 +711,10 @@ if (wordBtn) {
 
       URL.revokeObjectURL(url);
 
+
       printModal.classList.add("hidden");
       printModal.classList.remove("flex");
+
 
       showStatus(
         "File Word berhasil dibuat.",
@@ -472,9 +725,10 @@ if (wordBtn) {
 }
 
 
-// =========================
-// KEMBALI DARI MIDTRANS
-// =========================
+/* =========================
+   KEMBALI DARI MIDTRANS
+========================= */
+
 window.addEventListener(
   "DOMContentLoaded",
   async () => {
@@ -482,6 +736,7 @@ window.addEventListener(
       new URLSearchParams(
         window.location.search
       );
+
 
     const transactionStatus =
       params.get("transaction_status");
@@ -492,6 +747,7 @@ window.addEventListener(
     const orderIdFromUrl =
       params.get("order_id");
 
+
     if (
       transactionStatus === "settlement" ||
       statusCode === "200"
@@ -499,6 +755,7 @@ window.addEventListener(
       const orderId =
         orderIdFromUrl ||
         localStorage.getItem("orderId");
+
 
       if (!orderId) {
         showStatus(
@@ -509,14 +766,17 @@ window.addEventListener(
         return;
       }
 
+
       try {
         const response =
           await fetch(
             `/api/get-payment?order_id=${encodeURIComponent(orderId)}`
           );
 
+
         const data =
           await response.json();
+
 
         if (!response.ok) {
           throw new Error(
@@ -525,31 +785,36 @@ window.addEventListener(
           );
         }
 
+
         if (data.surat_text) {
           output.textContent =
             data.surat_text;
         }
 
-        // BUKA AKSES UNTUK DRAFT INI
+
         localStorage.setItem(
           "paymentUnlocked",
           "true"
         );
+
 
         localStorage.setItem(
           "paidOrderId",
           orderId
         );
 
+
         if (printModal) {
           printModal.classList.remove("hidden");
           printModal.classList.add("flex");
         }
 
+
         showStatus(
           "Pembayaran berhasil. Word dan PDF sudah terbuka untuk surat ini.",
           "success"
         );
+
 
       } catch (error) {
         console.error(error);
@@ -564,9 +829,10 @@ window.addEventListener(
 );
 
 
-// =========================
-// ESCAPE HTML
-// =========================
+/* =========================
+   ESCAPE HTML
+========================= */
+
 function escapeHtml(text) {
   return text
     .replace(/&/g, "&amp;")
