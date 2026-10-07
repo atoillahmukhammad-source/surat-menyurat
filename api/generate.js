@@ -46,7 +46,10 @@ ATURAN:
 - jangan membuat placeholder seperti [tanggal], [alamat], atau [jabatan]
 - hindari pengulangan
 - utamakan agar surat muat dalam 1 halaman A4
-- panjang ideal sekitar 250–350 kata
+- panjang ideal sekitar 300–450 kata
+- surat harus lengkap sampai bagian penutup dan nama pengirim
+- jangan berhenti di tengah kalimat
+- pastikan ada pembuka, isi utama, penutup, dan salam penutup
 - jika detail terlalu panjang, rangkum secara efektif
 - jangan menyebut AI, , atau aplikasi
 - DILARANG membuat placeholder dalam bentuk apa pun, termasuk teks dalam tanda [ ].
@@ -121,7 +124,7 @@ const models = [
             ],
             generationConfig: {
               temperature: 0.3,
-              maxOutputTokens: 800
+              maxOutputTokens: 1400
             }
           })
         }
