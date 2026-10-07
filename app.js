@@ -408,7 +408,44 @@ if (wordBtn) {
     }
   );
 }
+// PULIHKAN DRAFT SETELAH KEMBALI DARI MIDTRANS
+window.addEventListener("DOMContentLoaded", () => {
+  const savedSurat =
+    sessionStorage.getItem("suratSetelahBayar");
 
+  if (savedSurat) {
+    output.textContent = savedSurat;
+
+    showStatus(
+      "Draft surat berhasil dipulihkan setelah pembayaran.",
+      "success"
+    );
+  }
+
+  const params =
+    new URLSearchParams(window.location.search);
+
+  const transactionStatus =
+    params.get("transaction_status");
+
+  const statusCode =
+    params.get("status_code");
+
+  if (
+    transactionStatus === "settlement" ||
+    statusCode === "200"
+  ) {
+    if (printModal) {
+      printModal.classList.remove("hidden");
+      printModal.classList.add("flex");
+    }
+
+    showStatus(
+      "Pembayaran berhasil. Silakan pilih Word atau PDF.",
+      "success"
+    );
+  }
+});
 
 function escapeHtml(text) {
   return text
