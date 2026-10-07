@@ -29,27 +29,31 @@ Informasi/kebutuhan surat:
 ${detail}
 
 Ketentuan:
-- gunakan bahasa Indonesia yang formal, natural, dan profesional
-- jangan mengarang informasi yang tidak diberikan pengguna
-- perbaiki tata bahasa pengguna apabila diperlukan
+- gunakan bahasa Indonesia formal dan natural
+- jangan mengarang informasi yang tidak diberikan
+- perbaiki tata bahasa jika perlu
 - susun surat secara lengkap
-- hindari kalimat berlebihan
 - jangan menggunakan markdown
 - langsung tampilkan isi surat
 `;
 
     const response = await fetch(
-      "https://api.openai.com/v1/responses",
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "Authorization":
-            `Bearer ${process.env.OPENAI_API_KEY}`
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: "gpt-6-luna",
-          input: prompt
+          contents: [
+            {
+              parts: [
+                {
+                  text: prompt
+                }
+              ]
+            }
+          ]
         })
       }
     );
@@ -62,20 +66,16 @@ Ketentuan:
       return res.status(response.status).json({
         error:
           data?.error?.message ||
-          "Gagal menghubungi AI"
+          "Gagal menghubungi Gemini"
       });
     }
 
-    // Ambil teks dari Responses API
     const text =
-      data.output
-        ?.flatMap(item => item.content || [])
-        ?.find(item => item.type === "output_text")
-        ?.text;
+      data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!text) {
       return res.status(500).json({
-        error: "AI tidak menghasilkan teks"
+        error: "Gemini tidak menghasilkan teks"
       });
     }
 
