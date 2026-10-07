@@ -237,13 +237,34 @@ editBtn.addEventListener(
 
 
 // BUKA POPUP CETAK
-printBtn.addEventListener(
-  "click",
-  () => {
-    printModal.classList.remove("hidden");
-    printModal.classList.add("flex");
+printBtn.addEventListener("click", async () => {
+  try {
+    printBtn.disabled = true;
+    printBtn.textContent = "⏳ Membuat pembayaran...";
+
+    const response = await fetch("/api/create-payment", {
+      method: "POST"
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        data.error || "Gagal membuat pembayaran."
+      );
+    }
+
+    // Buka halaman pembayaran Midtrans
+    window.open(data.redirect_url, "_blank");
+
+  } catch (error) {
+    alert(error.message);
+
+  } finally {
+    printBtn.disabled = false;
+    printBtn.textContent = "🖨️ Cetak";
   }
-);
+});
 
 
 // TUTUP POPUP
