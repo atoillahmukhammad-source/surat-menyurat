@@ -6,12 +6,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const {
-      jenis,
-      nama,
-      penerima,
-      detail
-    } = req.body || {};
+    const { jenis, nama, penerima, detail } = req.body || {};
 
     if (!jenis || !nama || !penerima || !detail) {
       return res.status(400).json({
@@ -28,9 +23,7 @@ export default async function handler(req, res) {
     }
 
     const prompt = `
-Anda adalah asisten profesional untuk menyusun surat berbahasa Indonesia.
-
-Buat surat berdasarkan data berikut:
+Buat hanya naskah surat final berbahasa Indonesia berdasarkan data berikut.
 
 Jenis surat:
 ${jenis}
@@ -38,108 +31,92 @@ ${jenis}
 Nama pengirim:
 ${nama}
 
-Penerima atau instansi:
+Penerima:
 ${penerima}
 
-Informasi kebutuhan surat:
+Detail:
 ${detail}
 
-Ketentuan:
-- gunakan bahasa Indonesia formal, profesional, natural, dan mudah dipahami
-- perbaiki ejaan dan tata bahasa bila diperlukan
-- jangan mengarang informasi yang tidak diberikan pengguna
-- jangan membuat alamat, tanggal, jabatan, atau nomor surat yang tidak tersedia
-- struktur surat harus menyesuaikan jenis surat
+ATURAN:
+- langsung tulis isi surat
+- jangan menulis "Berikut suratnya", "Tentu", "Catatan", atau penjelasan lain
 - jangan menggunakan markdown
-- jangan memberikan penjelasan sebelum atau sesudah surat
-- langsung berikan naskah surat siap digunakan
+- gunakan bahasa formal, natural, dan ringkas
+- jangan mengarang data yang tidak diberikan
+- jangan membuat placeholder seperti [tanggal], [alamat], atau [jabatan]
+- hindari pengulangan
+- utamakan agar surat muat dalam 1 halaman A4
+- panjang ideal sekitar 250–350 kata
+- jika detail terlalu panjang, rangkum secara efektif
+- jangan menyebut AI, Gemini, atau aplikasi
 `;
 
     const models = [
-      "gemini-3.8-flash",
-      "gemini-3.7-flash",
-      "gemini-3.5-flash-lite"
+      "gemini-2.5-flash",
+      "gemini-2.5-flash-lite"
     ];
 
-    let lastError = null;
+    let lastError = "Gemini sedang tidak tersedia.";
 
     for (const model of models) {
-      try {
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              contents: [
-                {
-                  role: "user",
-                  parts: [
-                    {
-                      text: prompt
-                    }
-                  ]
-                }
-              ],
-              generationConfig: {
-                temperature: 0.5,
-                maxOutputTokens: 2500
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: "user",
+                parts: [{ text: prompt }]
               }
-            })
-          }
-        );
-
-        const data = await response.json();
-
-        if (response.ok) {
-          const text =
-            data?.candidates?.[0]
-              ?.content
-              ?.parts
-              ?.map(part => part.text || "")
-              .join("")
-              .trim();
-
-          if (text) {
-            return res.status(200).json({
-              result: text,
-              model
-            });
-          }
+            ],
+            generationConfig: {
+              temperature: 0.3,
+              maxOutputTokens: 1200
+            }
+          })
         }
+      );
 
+      const data = await response.json();
+
+      if (!response.ok) {
         lastError =
           data?.error?.message ||
-          `Model ${model} gagal memproses permintaan.`;
-
-        console.error(
-          `Gemini ${model} error:`,
-          JSON.stringify(data)
-        );
-
-      } catch (error) {
-        lastError = error.message;
-
-        console.error(
-          `Error ${model}:`,
-          error
-        );
+          `Model ${model} gagal.`;
+        continue;
       }
+
+      let text =
+        data?.candidates?.[0]?.content?.parts
+          ?.map(part => part.text || "")
+          .join("")
+          .trim();
+
+      if (!text) continue;
+
+      text = text
+        .replace(/^Tentu[,!.]?\s*/i, "")
+        .replace(/^Baik[,!.]?\s*/i, "")
+        .replace(/^Berikut(?: adalah)?(?: contoh)? surat[^:\n]*[:\n]\s*/i, "")
+        .replace(/\*\*/g, "")
+        .replace(/```/g, "")
+        .trim();
+
+      return res.status(200).json({
+        result: text
+      });
     }
 
     return res.status(503).json({
-      error:
-        lastError ||
-        "Semua model AI sedang sibuk. Silakan coba lagi beberapa saat."
+      error: lastError
     });
 
   } catch (error) {
-    console.error(
-      "Server error:",
-      error
-    );
+    console.error(error);
 
     return res.status(500).json({
       error: "Terjadi kesalahan pada server."
