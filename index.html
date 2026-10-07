@@ -29,6 +29,11 @@
       text-justify: inter-word;
     }
 
+    #signaturePad {
+      cursor: crosshair;
+      touch-action: none;
+    }
+
     @page {
       size: A4 portrait;
       margin: 16mm 19mm;
@@ -80,9 +85,12 @@
         padding: 0 !important;
 
         white-space: pre-wrap !important;
-
         text-align: justify !important;
         text-justify: inter-word !important;
+      }
+
+      #signaturePreviewArea {
+        visibility: visible !important;
       }
 
       .no-print,
@@ -98,15 +106,17 @@
 
   <div class="max-w-7xl mx-auto p-4 md:p-8">
 
+    <!-- HEADER -->
     <header class="no-print mb-6">
       <h1 class="text-3xl font-bold text-slate-900">
-        📄 Surat Generator
+        📄 Surat Menyurat AI
       </h1>
 
       <p class="text-slate-500 mt-1">
-        Buat surat cepat, mudah disesuaikan dan tinggal cetak
+        Buat surat profesional dengan bantuan AI
       </p>
     </header>
+
 
     <div class="grid lg:grid-cols-[380px_1fr] gap-6 items-start">
 
@@ -135,6 +145,7 @@
           <option>Surat Dinas</option>
         </select>
 
+
         <label class="block text-sm font-medium mb-1">
           Nama Pengirim
         </label>
@@ -145,6 +156,7 @@
           placeholder="Contoh: Samsul Hadi"
           class="w-full border border-slate-300 rounded-lg p-3 mb-4"
         >
+
 
         <label class="block text-sm font-medium mb-1">
           Penerima / Instansi
@@ -157,23 +169,81 @@
           class="w-full border border-slate-300 rounded-lg p-3 mb-4"
         >
 
+
         <label class="block text-sm font-medium mb-1">
-          Penjelasan dan Rincian Surat
+          Detail Surat
         </label>
 
         <textarea
           id="detail"
-          rows="9"
+          rows="8"
           placeholder="Tuliskan informasi penting yang harus dimuat dalam surat..."
-          class="w-full border border-slate-300 rounded-lg p-3 mb-4 resize-y"
+          class="w-full border border-slate-300 rounded-lg p-3 mb-5 resize-y"
         ></textarea>
+
+
+        <!-- TANDA TANGAN -->
+        <div class="mb-5">
+
+          <div class="flex items-center justify-between mb-2">
+
+            <label class="block text-sm font-medium">
+              Tanda Tangan
+            </label>
+
+            <span class="text-xs text-slate-400">
+              Opsional
+            </span>
+
+          </div>
+
+          <div
+            class="border border-slate-300 rounded-xl p-3 bg-slate-50"
+          >
+
+            <canvas
+              id="signaturePad"
+              width="600"
+              height="220"
+              class="w-full h-[180px] bg-white border border-dashed border-slate-300 rounded-lg"
+            ></canvas>
+
+          </div>
+
+          <div class="flex gap-2 mt-2">
+
+            <button
+              type="button"
+              id="clearSignatureBtn"
+              class="px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white hover:bg-slate-50"
+            >
+              🧹 Hapus
+            </button>
+
+            <button
+              type="button"
+              id="useSignatureBtn"
+              class="px-3 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-900"
+            >
+              ✓ Gunakan Tanda Tangan
+            </button>
+
+          </div>
+
+          <p class="text-xs text-slate-500 mt-2">
+            Gunakan mouse atau jari untuk membuat tanda tangan.
+          </p>
+
+        </div>
+
 
         <button
           id="generateBtn"
           class="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-medium py-3 rounded-lg transition"
         >
-          ✨ Buat Draft Surat
+          ✨ Buat Surat dengan AI
         </button>
+
 
         <div
           id="status"
@@ -186,6 +256,7 @@
       <!-- HASIL -->
       <section>
 
+        <!-- TOOLBAR -->
         <div class="no-print flex flex-wrap gap-2 mb-4">
 
           <button
@@ -204,7 +275,7 @@
 
           <button
             id="printBtn"
-            class="bg-white border border-slate-300 px-4 py-2 rounded-lg"
+            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
           >
             🖨️ Cetak
           </button>
@@ -218,17 +289,36 @@
 
         </div>
 
+
+        <!-- PREVIEW -->
         <div class="overflow-auto pb-6">
 
           <article
             id="suratPreview"
             class="mx-auto shadow-md"
           >
+
             <div
               id="output"
               contenteditable="false"
               spellcheck="true"
             >Hasil surat akan muncul di sini...</div>
+
+
+            <!-- PREVIEW TANDA TANGAN -->
+            <div
+              id="signaturePreviewArea"
+              class="hidden mt-4"
+            >
+
+              <img
+                id="signaturePreview"
+                alt="Tanda tangan"
+                class="w-36 h-auto object-contain"
+              >
+
+            </div>
+
           </article>
 
         </div>
@@ -245,6 +335,7 @@
     id="printModal"
     class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 no-print"
   >
+
     <div class="bg-white rounded-2xl shadow-xl p-6 w-[340px]">
 
       <h3 class="text-xl font-semibold mb-2">
@@ -252,7 +343,7 @@
       </h3>
 
       <p class="text-sm text-slate-500 mb-5">
-        Pilih format surat yang ingin dihasilkan.
+        Akses Word dan PDF berlaku untuk surat ini setelah pembayaran berhasil.
       </p>
 
       <div class="space-y-3">
@@ -261,6 +352,7 @@
           id="wordBtn"
           class="w-full border border-blue-200 bg-blue-50 hover:bg-blue-100 rounded-xl p-4 text-left"
         >
+
           <div class="font-semibold">
             📘 Microsoft Word
           </div>
@@ -268,22 +360,27 @@
           <div class="text-xs text-slate-500 mt-1">
             Unduh surat untuk diedit kembali.
           </div>
+
         </button>
+
 
         <button
           id="pdfBtn"
           class="w-full border border-red-200 bg-red-50 hover:bg-red-100 rounded-xl p-4 text-left"
         >
+
           <div class="font-semibold">
             📕 PDF
           </div>
 
           <div class="text-xs text-slate-500 mt-1">
-            Simpan surat dalam format siap cetak.
+            Cetak atau simpan sebagai PDF.
           </div>
+
         </button>
 
       </div>
+
 
       <button
         id="closePrintModal"
@@ -293,6 +390,7 @@
       </button>
 
     </div>
+
   </div>
 
 
