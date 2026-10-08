@@ -235,6 +235,14 @@ function restore(){
 
 function newDraft(source){
 
+  /*
+    Draft baru berarti transaksi lama
+    tidak boleh ikut terbawa.
+  */
+  sessionStorage.removeItem(
+    'pending_payment'
+  );
+
   draftId=
     uuid();
 
@@ -1706,6 +1714,11 @@ $('printBtn')
       ensureDraft();
       save();
 
+      /*
+        1. Kalau draft sudah pernah dibayar,
+        cek pembayaran tersebut.
+      */
+
       if(paidOrderId){
 
         try{
@@ -1734,6 +1747,82 @@ $('printBtn')
           return;
         }
       }
+
+      /*
+        2. Kalau baru kembali dari Midtrans tetapi
+        pembayaran belum sempat terkonfirmasi,
+        cek order yang sedang berjalan dulu.
+
+        Jangan langsung membuat pembayaran baru.
+      */
+
+      if(currentOrderId){
+
+        try{
+
+          const d=
+            await paymentData(
+              currentOrderId
+            );
+
+          if(
+            [
+              'settlement',
+              'capture'
+            ].includes(
+              d.payment_status
+            ) &&
+            d.draft_id===draftId
+          ){
+
+            paidOrderId=
+              currentOrderId;
+
+            sessionStorage.removeItem(
+              'pending_payment'
+            );
+
+            save();
+
+            modal(
+              $('printModal'),
+              true
+            );
+
+            status(
+              'Pembayaran berhasil diverifikasi.',
+              'success'
+            );
+
+            return;
+          }
+
+          if(
+            d.payment_status===
+            'pending'
+          ){
+
+            status(
+              'Pembayaran masih diproses. Tunggu beberapa saat lalu klik Cetak kembali.',
+              'info'
+            );
+
+            return;
+          }
+
+        }catch(e){
+
+          console.error(
+            'CHECK CURRENT PAYMENT:',
+            e
+          );
+        }
+      }
+
+      /*
+        3. Hanya kalau benar-benar belum ada
+        transaksi aktif, tampilkan pembayaran baru.
+      */
 
       modal(
         $('paymentInfoModal'),
@@ -1806,8 +1895,7 @@ $('continuePaymentBtn')
       const btn=
         $('continuePaymentBtn');
 
-      btn.disabled=
-        true;
+      btn.disabled=true;
 
       btn.textContent=
         '⏳ Menyiapkan...';
@@ -1854,6 +1942,26 @@ $('continuePaymentBtn')
         currentOrderId=
           d.order_id;
 
+        /*
+          Simpan transaksi yang sedang dibayar
+          secara terpisah agar saat kembali
+          dari Midtrans tidak mengambil draft lama.
+        */
+
+        sessionStorage.setItem(
+          'pending_payment',
+          JSON.stringify({
+            orderId:
+              d.order_id,
+
+            draftId:
+              draftId,
+
+            suratText:
+              text()
+          })
+        );
+
         save();
 
         location.assign(
@@ -1876,8 +1984,7 @@ $('continuePaymentBtn')
 
         working=false;
 
-        btn.disabled=
-          false;
+        btn.disabled=false;
 
         btn.textContent=
           'Lanjut Cetak';
@@ -1891,6 +1998,7 @@ $('continuePaymentBtn')
    Retry otomatis 5x, jeda 2 detik
 ========================================================= */
 
+
 async function checkReturn(){
 
   const p=
@@ -1898,23 +2006,60 @@ async function checkReturn(){
       location.search
     );
 
+  let pending=null;
+
+  try{
+
+    pending=
+      JSON.parse(
+        sessionStorage.getItem(
+          'pending_payment'
+        ) || 'null'
+      );
+
+  }catch{
+
+    pending=null;
+  }
+
   const id=
-    p.get(
-      'order_id'
-    )||
+    p.get('order_id')||
+    pending?.orderId||
     currentOrderId;
 
   if(!id)return;
+
+  /*
+    Jika ada transaksi terbaru yang memang
+    sedang dibayar, pakai draft milik transaksi itu.
+  */
+
+  if(
+    pending?.orderId===id &&
+    pending?.draftId
+  ){
+
+    draftId=
+      pending.draftId;
+
+    currentOrderId=
+      pending.orderId;
+
+    if(
+      pending.suratText
+    ){
+
+      output.textContent=
+        pending.suratText;
+    }
+  }
 
   try{
 
     let d=null;
 
     /*
-      Midtrans kadang butuh beberapa detik
-      sebelum status berubah menjadi settlement.
-
-      Karena itu kita cek maksimal 5x,
+      Cek status maksimal 5 kali,
       jeda 2 detik.
     */
 
@@ -1937,6 +2082,7 @@ async function checkReturn(){
           d.payment_status
         )
       ){
+
         break;
       }
 
@@ -1952,8 +2098,13 @@ async function checkReturn(){
       }
     }
 
+    /*
+      Jika browser tidak memiliki draft,
+      pulihkan teks dari server.
+    */
+
     if(
-      !hasDraft()&&
+      !hasDraft() &&
       d?.surat_text
     ){
 
@@ -1962,7 +2113,7 @@ async function checkReturn(){
     }
 
     if(
-      !draftId&&
+      !draftId &&
       d?.draft_id
     ){
 
@@ -1971,16 +2122,15 @@ async function checkReturn(){
     }
 
     if(
-      d&&
+      d &&
       [
         'settlement',
         'capture'
       ].includes(
         d.payment_status
-      )&&
-      d.draft_id&&
-      d.draft_id===
-        draftId
+      ) &&
+      d.draft_id &&
+      d.draft_id===draftId
     ){
 
       paidOrderId=
@@ -1988,6 +2138,15 @@ async function checkReturn(){
 
       currentOrderId=
         id;
+
+      /*
+        Pembayaran selesai,
+        data pending tidak diperlukan lagi.
+      */
+
+      sessionStorage.removeItem(
+        'pending_payment'
+      );
 
       save();
 
@@ -2015,9 +2174,8 @@ async function checkReturn(){
       }
 
     }else if(
-      p.has(
-        'order_id'
-      )
+      p.has('order_id') ||
+      pending?.orderId===id
     ){
 
       status(
@@ -2034,7 +2192,6 @@ async function checkReturn(){
     );
   }
 }
-
 
 /* =========================================================
    PDF EXPORT
