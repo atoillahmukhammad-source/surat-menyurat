@@ -1206,16 +1206,103 @@ async function checkReturn(){
   if(!id)return;
 
   try{
-    const d=
-      await paymentData(id);
+    let d=null;
+
+    for(let i=0;i<5;i++){
+
+      d=
+        await paymentData(id);
+
+      if(
+        [
+          'settlement',
+          'capture'
+        ].includes(
+          d.payment_status
+        )
+      ){
+        break;
+      }
+
+      if(i<4){
+        await new Promise(
+          resolve=>
+            setTimeout(
+              resolve,
+              2000
+            )
+        );
+      }
+    }
 
     if(
       !hasDraft()&&
-      d.surat_text
+      d?.surat_text
     ){
       output.textContent=
         d.surat_text;
     }
+
+    if(
+      !draftId&&
+      d?.draft_id
+    ){
+      draftId=
+        d.draft_id;
+    }
+
+    if(
+      d&&
+      [
+        'settlement',
+        'capture'
+      ].includes(
+        d.payment_status
+      )&&
+      d.draft_id&&
+      d.draft_id===draftId
+    ){
+      paidOrderId=id;
+      currentOrderId=id;
+
+      save();
+
+      modal(
+        $('printModal'),
+        true
+      );
+
+      status(
+        'Pembayaran berhasil diverifikasi.',
+        'success'
+      );
+
+      if(
+        p.has('order_id')
+      ){
+        history.replaceState(
+          {},
+          document.title,
+          location.pathname
+        );
+      }
+
+    }else if(
+      p.has('order_id')
+    ){
+      status(
+        'Pembayaran masih diproses. Klik Cetak kembali beberapa saat lagi.',
+        'info'
+      );
+    }
+
+  }catch(e){
+    status(
+      `Pemeriksaan pembayaran: ${e.message}`,
+      'error'
+    );
+  }
+}
 
     if(
       !draftId&&
