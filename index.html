@@ -17,91 +17,93 @@
       padding: 20mm 22mm;
       box-sizing: border-box;
       position: relative;
-    }
-
-    #output {
-      font-family: Arial, Helvetica, sans-serif;
-      font-size: 15px;
-      line-height: 1.6;
-      color: #111827;
-      white-space: pre-wrap;
-      overflow-wrap: break-word;
-      text-align: justify;
-      text-justify: inter-word;
-    }
-
-    #printEditorPreview {
-      width: 210mm;
-      max-width: 100%;
-      min-height: 297mm;
-      background: white;
-      padding: 20mm 22mm;
-      box-sizing: border-box;
-      position: relative;
       overflow: hidden;
     }
 
-    #printEditorText {
+    #output {
+      position: relative;
+      z-index: 10;
+
       font-family: Arial, Helvetica, sans-serif;
       font-size: 15px;
       line-height: 1.6;
       color: #111827;
+
       white-space: pre-wrap;
       overflow-wrap: break-word;
+
       text-align: justify;
       text-justify: inter-word;
+
+      min-height: 600px;
+      outline: none;
     }
 
-    #signatureLayer {
+    #signaturePad {
+      cursor: crosshair;
+      touch-action: none;
+    }
+
+    .editor-layer {
       position: absolute;
-      left: 80px;
-      top: 650px;
-      width: 150px;
       z-index: 20;
       cursor: move;
       user-select: none;
-      display: none;
+      touch-action: none;
     }
 
-    #signatureLayer img {
+    .editor-layer img {
       width: 100%;
-      height: auto;
+      height: 100%;
+      object-fit: contain;
       display: block;
       pointer-events: none;
     }
 
-    #signatureResizeHandle {
+    .layer-selected {
+      outline: 2px dashed #2563eb;
+    }
+
+    .resize-handle {
       position: absolute;
       right: -8px;
       bottom: -8px;
+
       width: 18px;
       height: 18px;
+
       background: #2563eb;
       border: 2px solid white;
+
       border-radius: 999px;
+
       cursor: nwse-resize;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+
+      box-shadow: 0 1px 4px rgba(0,0,0,.25);
     }
 
-    #signatureDeleteBtn {
+    .delete-layer {
       position: absolute;
       right: -10px;
       top: -10px;
+
       width: 24px;
       height: 24px;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
       border-radius: 999px;
+
       background: #dc2626;
       color: white;
-      font-size: 12px;
-      line-height: 24px;
-      text-align: center;
-      cursor: pointer;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.25);
-    }
 
-    #signatureCanvas {
-      touch-action: none;
-      cursor: crosshair;
+      font-size: 14px;
+
+      cursor: pointer;
+
+      box-shadow: 0 1px 4px rgba(0,0,0,.25);
     }
 
     @page {
@@ -130,12 +132,16 @@
         position: absolute !important;
         left: 0 !important;
         top: 0 !important;
+
         width: 100% !important;
         max-width: none !important;
+
         min-height: 0 !important;
         height: auto !important;
+
         margin: 0 !important;
         padding: 0 !important;
+
         box-shadow: none !important;
         border: none !important;
         background: white !important;
@@ -145,18 +151,31 @@
         font-family: Arial, Helvetica, sans-serif !important;
         font-size: 11.5pt !important;
         line-height: 1.5 !important;
+
         color: black !important;
+
         margin: 0 !important;
         padding: 0 !important;
+
         white-space: pre-wrap !important;
+
         text-align: justify !important;
         text-justify: inter-word !important;
       }
 
+      .resize-handle,
+      .delete-layer {
+        display: none !important;
+      }
+
+      .editor-layer {
+        outline: none !important;
+      }
+
       .no-print,
       #status,
-      #printModal,
-      #documentEditorModal {
+      #paymentInfoModal,
+      #printModal {
         display: none !important;
       }
     }
@@ -169,24 +188,41 @@
 
     <!-- HEADER -->
     <header class="no-print mb-6">
+
       <h1 class="text-3xl font-bold text-slate-900">
-        📄 Surat Generator
+        📄 Surat Menyurat AI
       </h1>
 
       <p class="text-slate-500 mt-1">
-        Buat surat cepat, mudah disesuaikan dan tinggal cetak
+        Buat, edit, dan siapkan surat profesional dalam satu tempat.
       </p>
+
+      <div class="mt-4 bg-blue-50 border border-blue-100 rounded-xl p-4">
+
+        <p class="text-sm text-blue-900 font-medium">
+          Sudah punya draft surat?
+        </p>
+
+        <p class="text-sm text-blue-700 mt-1">
+          Anda tidak harus membuat surat dari AI. Tempelkan draft Anda langsung
+          ke area surat, lalu edit, tambahkan tanda tangan, logo, header, footer,
+          latar belakang, watermark, atau gambar lainnya sebelum dicetak.
+        </p>
+
+      </div>
+
     </header>
 
 
-    <div class="grid lg:grid-cols-[380px_1fr] gap-6 items-start">
+    <div class="grid lg:grid-cols-[390px_1fr] gap-6 items-start">
 
-      <!-- FORM -->
+      <!-- PANEL KIRI -->
       <section class="no-print bg-white p-6 rounded-2xl shadow-sm border">
 
         <h2 class="text-lg font-semibold mb-5">
-          Data Surat
+          Buat Surat
         </h2>
+
 
         <label class="block text-sm font-medium mb-1">
           Jenis Surat
@@ -206,6 +242,7 @@
           <option>Surat Dinas</option>
         </select>
 
+
         <label class="block text-sm font-medium mb-1">
           Nama Pengirim
         </label>
@@ -216,6 +253,7 @@
           placeholder="Contoh: Samsul Hadi"
           class="w-full border border-slate-300 rounded-lg p-3 mb-4"
         >
+
 
         <label class="block text-sm font-medium mb-1">
           Penerima / Instansi
@@ -228,16 +266,18 @@
           class="w-full border border-slate-300 rounded-lg p-3 mb-4"
         >
 
+
         <label class="block text-sm font-medium mb-1">
           Penjelasan dan Rincian Surat
         </label>
 
         <textarea
           id="detail"
-          rows="10"
+          rows="8"
           placeholder="Tuliskan informasi penting yang harus dimuat dalam surat..."
-          class="w-full border border-slate-300 rounded-lg p-3 mb-5 resize-y"
+          class="w-full border border-slate-300 rounded-lg p-3 mb-4 resize-y"
         ></textarea>
+
 
         <button
           id="generateBtn"
@@ -246,17 +286,143 @@
           ✨ Buat Draft Surat
         </button>
 
+
         <div
           id="status"
           class="hidden mt-4 p-3 rounded-lg text-sm"
         ></div>
 
+
+        <!-- TANDA TANGAN -->
+        <div class="border-t mt-6 pt-5">
+
+          <div class="flex items-center justify-between mb-2">
+
+            <h3 class="font-semibold">
+              Tanda Tangan
+            </h3>
+
+            <span class="text-xs text-slate-400">
+              Opsional
+            </span>
+
+          </div>
+
+          <p class="text-xs text-slate-500 mb-3">
+            Gambar menggunakan mouse atau jari, lalu tambahkan ke surat.
+          </p>
+
+          <div class="border border-slate-300 rounded-xl p-3 bg-slate-50">
+
+            <canvas
+              id="signaturePad"
+              width="600"
+              height="220"
+              class="w-full h-[160px] bg-white border border-dashed border-slate-300 rounded-lg"
+            ></canvas>
+
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 mt-3">
+
+            <button
+              id="clearSignatureBtn"
+              type="button"
+              class="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white hover:bg-slate-50"
+            >
+              🧹 Hapus
+            </button>
+
+            <button
+              id="addSignatureBtn"
+              type="button"
+              class="bg-slate-800 text-white rounded-lg px-3 py-2 text-sm hover:bg-slate-900"
+            >
+              ✍️ Tambahkan
+            </button>
+
+          </div>
+
+        </div>
+
+
+        <!-- GAMBAR / LAYER -->
+        <div class="border-t mt-6 pt-5">
+
+          <h3 class="font-semibold mb-2">
+            Tambah Gambar / Layer
+          </h3>
+
+          <p class="text-xs text-slate-500 mb-3">
+            Gunakan untuk logo, header, footer, watermark, background,
+            stempel, atau gambar lainnya.
+          </p>
+
+          <label
+            for="imageUpload"
+            class="block cursor-pointer border-2 border-dashed border-slate-300 rounded-xl p-4 text-center hover:bg-slate-50"
+          >
+
+            <div class="text-2xl">
+              🖼️
+            </div>
+
+            <div class="text-sm font-medium mt-1">
+              Pilih Gambar
+            </div>
+
+            <div class="text-xs text-slate-400 mt-1">
+              PNG / JPG
+            </div>
+
+          </label>
+
+          <input
+            id="imageUpload"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            class="hidden"
+          >
+
+
+          <div class="grid grid-cols-2 gap-2 mt-3">
+
+            <button
+              id="sendLayerBackwardBtn"
+              type="button"
+              class="border border-slate-300 rounded-lg px-3 py-2 text-xs bg-white hover:bg-slate-50"
+            >
+              ↓ Ke Belakang
+            </button>
+
+            <button
+              id="bringLayerForwardBtn"
+              type="button"
+              class="border border-slate-300 rounded-lg px-3 py-2 text-xs bg-white hover:bg-slate-50"
+            >
+              ↑ Ke Depan
+            </button>
+
+          </div>
+
+
+          <button
+            id="deleteSelectedLayerBtn"
+            type="button"
+            class="w-full mt-2 border border-red-200 text-red-600 rounded-lg px-3 py-2 text-xs bg-red-50 hover:bg-red-100"
+          >
+            🗑️ Hapus Layer Terpilih
+          </button>
+
+        </div>
+
       </section>
 
 
-      <!-- HASIL -->
+      <!-- AREA SURAT -->
       <section>
 
+        <!-- TOOLBAR -->
         <div class="no-print flex flex-wrap gap-2 mb-4">
 
           <button
@@ -289,18 +455,35 @@
 
         </div>
 
+
         <div class="overflow-auto pb-6">
 
           <article
             id="suratPreview"
             class="mx-auto shadow-md"
           >
+
             <div
               id="output"
-              contenteditable="false"
+              contenteditable="true"
               spellcheck="true"
-            >Hasil surat akan muncul di sini...</div>
+            >Hasil surat akan muncul di sini...
+
+Sudah punya draft sendiri? Hapus teks ini lalu tempelkan naskah surat Anda langsung di area ini.</div>
+
+            <!-- LAYER GAMBAR DINAMIS MASUK DI SINI -->
+
           </article>
+
+        </div>
+
+
+        <div class="no-print max-w-[210mm] mx-auto mt-3 text-xs text-slate-500">
+
+          <strong>Tips:</strong>
+          klik teks untuk mengedit langsung. Gambar dan tanda tangan dapat
+          digeser, diperbesar, diperkecil, ditumpuk di atas teks, atau diatur
+          urutan layer-nya.
 
         </div>
 
@@ -311,32 +494,31 @@
   </div>
 
 
-  <!-- MODAL PERSIAPAN DOKUMEN -->
+  <!-- POPUP INFORMASI PEMBAYARAN -->
   <div
-    id="documentEditorModal"
-    class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 no-print p-4"
+    id="paymentInfoModal"
+    class="fixed inset-0 bg-black/45 hidden items-center justify-center z-50 no-print p-4"
   >
 
-    <div
-      class="bg-slate-100 rounded-2xl shadow-2xl w-full max-w-7xl h-[94vh] flex flex-col overflow-hidden"
-    >
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
 
-      <!-- HEADER -->
-      <div class="bg-white border-b px-6 py-4 flex items-center justify-between">
+      <div class="flex items-start justify-between gap-4">
 
         <div>
-          <h2 class="text-xl font-semibold">
-            Persiapan Dokumen
+
+          <h2 class="text-xl font-semibold text-slate-900">
+            Cetak Dokumen
           </h2>
 
           <p class="text-sm text-slate-500 mt-1">
-            Tambahkan tanda tangan dan atur posisinya sebelum mencetak.
+            Satu kali pembayaran membuka kedua format untuk draft surat ini.
           </p>
+
         </div>
 
         <button
-          id="closeDocumentEditor"
-          class="text-slate-400 hover:text-slate-800 text-2xl"
+          id="closePaymentInfoModal"
+          class="text-2xl text-slate-400 hover:text-slate-700"
         >
           ×
         </button>
@@ -344,158 +526,107 @@
       </div>
 
 
-      <div class="flex-1 grid lg:grid-cols-[320px_1fr] overflow-hidden">
+      <div class="mt-6 bg-blue-50 border border-blue-100 rounded-xl p-5 text-center">
 
-        <!-- PANEL KIRI -->
-        <aside
-          class="bg-white border-r p-5 overflow-y-auto"
-        >
+        <p class="text-sm text-blue-700">
+          Biaya Cetak
+        </p>
 
-          <h3 class="font-semibold mb-4">
-            Tanda Tangan
-          </h3>
+        <p class="text-3xl font-bold text-blue-900 mt-1">
+          Rp3.000
+        </p>
 
-          <p class="text-sm text-slate-500 mb-3">
-            Gambar tanda tangan menggunakan mouse atau jari.
-          </p>
-
-          <div class="border rounded-xl p-3 bg-slate-50">
-
-            <canvas
-              id="signatureCanvas"
-              width="600"
-              height="240"
-              class="w-full h-[160px] bg-white border border-dashed border-slate-300 rounded-lg"
-            ></canvas>
-
-          </div>
-
-          <div class="grid grid-cols-2 gap-2 mt-3">
-
-            <button
-              id="clearSignatureCanvas"
-              type="button"
-              class="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white hover:bg-slate-50"
-            >
-              🧹 Hapus
-            </button>
-
-            <button
-              id="addSignatureToDocument"
-              type="button"
-              class="bg-slate-800 text-white rounded-lg px-3 py-2 text-sm hover:bg-slate-900"
-            >
-              ✓ Tambahkan
-            </button>
-
-          </div>
-
-
-          <div class="border-t mt-6 pt-5">
-
-            <h3 class="font-semibold mb-3">
-              Pengaturan
-            </h3>
-
-            <p class="text-xs text-slate-500 leading-relaxed">
-              Setelah tanda tangan ditambahkan ke dokumen, Anda dapat:
-            </p>
-
-            <ul class="text-xs text-slate-500 mt-2 space-y-1">
-              <li>• Geser bebas ke posisi mana pun</li>
-              <li>• Letakkan di atas teks</li>
-              <li>• Perbesar atau perkecil</li>
-              <li>• Hapus dan gambar ulang</li>
-            </ul>
-
-          </div>
-
-        </aside>
-
-
-        <!-- AREA PREVIEW -->
-        <main class="overflow-auto p-6">
-
-          <div
-            id="printEditorPreview"
-            class="mx-auto shadow-lg"
-          >
-
-            <div
-              id="printEditorText"
-            ></div>
-
-
-            <!-- LAYER TANDA TANGAN -->
-            <div id="signatureLayer">
-
-              <img
-                id="editorSignatureImage"
-                alt="Tanda tangan"
-              >
-
-              <div
-                id="signatureDeleteBtn"
-                title="Hapus tanda tangan"
-              >
-                ×
-              </div>
-
-              <div
-                id="signatureResizeHandle"
-                title="Ubah ukuran"
-              ></div>
-
-            </div>
-
-          </div>
-
-        </main>
+        <p class="text-xs text-blue-600 mt-2">
+          Berlaku untuk Word + PDF pada draft surat yang sama.
+        </p>
 
       </div>
 
 
-      <!-- FOOTER -->
-      <div
-        class="bg-white border-t px-6 py-4 flex items-center justify-end gap-3"
+      <div class="mt-5">
+
+        <p class="text-sm font-medium text-slate-800">
+          Metode pembayaran
+        </p>
+
+        <div class="grid grid-cols-2 gap-2 mt-3">
+
+          <div class="border rounded-lg p-3 text-sm">
+            📱 QRIS
+          </div>
+
+          <div class="border rounded-lg p-3 text-sm">
+            🟢 GoPay
+          </div>
+
+          <div class="border rounded-lg p-3 text-sm">
+            🟠 ShopeePay
+          </div>
+
+          <div class="border rounded-lg p-3 text-sm">
+            🏦 Transfer / VA
+          </div>
+
+        </div>
+
+        <p class="text-xs text-slate-400 mt-3">
+          Pilihan pembayaran yang tersedia mengikuti layanan Midtrans.
+        </p>
+
+      </div>
+
+
+      <div class="mt-5 bg-slate-50 rounded-xl p-4">
+
+        <p class="text-sm font-medium text-slate-800">
+          Setelah pembayaran berhasil:
+        </p>
+
+        <ul class="text-sm text-slate-600 mt-2 space-y-1">
+          <li>✓ Akses Microsoft Word</li>
+          <li>✓ Akses PDF</li>
+          <li>✓ Tidak perlu membayar ulang untuk draft yang sama</li>
+        </ul>
+
+      </div>
+
+
+      <button
+        id="continuePaymentBtn"
+        class="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-xl"
       >
+        Lanjut Cetak
+      </button>
 
-        <button
-          id="cancelDocumentEditor"
-          class="border border-slate-300 rounded-lg px-5 py-2.5 bg-white hover:bg-slate-50"
-        >
-          Batal
-        </button>
 
-        <button
-          id="continuePrintBtn"
-          class="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-6 py-2.5 font-medium"
-        >
-          Lanjut Cetak
-        </button>
-
-      </div>
+      <button
+        id="cancelPaymentBtn"
+        class="w-full mt-2 text-sm text-slate-500 py-2"
+      >
+        Batal
+      </button>
 
     </div>
 
   </div>
 
 
-  <!-- POPUP FORMAT SETELAH AKSES TERBUKA -->
+  <!-- POPUP PILIH FORMAT -->
   <div
     id="printModal"
-    class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 no-print"
+    class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 no-print p-4"
   >
 
-    <div class="bg-white rounded-2xl shadow-xl p-6 w-[340px]">
+    <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm">
 
       <h3 class="text-xl font-semibold mb-2">
         Pilih Format Dokumen
       </h3>
 
       <p class="text-sm text-slate-500 mb-5">
-        Pilih format surat yang ingin digunakan.
+        Pembayaran untuk draft ini sudah berhasil.
       </p>
+
 
       <div class="space-y-3">
 
@@ -509,7 +640,7 @@
           </div>
 
           <div class="text-xs text-slate-500 mt-1">
-            Unduh surat untuk diedit kembali.
+            Unduh dokumen agar dapat diedit kembali.
           </div>
 
         </button>
@@ -537,7 +668,7 @@
         id="closePrintModal"
         class="w-full mt-5 text-sm text-slate-500 hover:text-slate-800"
       >
-        Batal
+        Tutup
       </button>
 
     </div>
