@@ -7,12 +7,19 @@ export default async function handler(req, res) {
 
   try {
     const {
-      surat_text
+      surat_text,
+      draft_id
     } = req.body || {};
 
     if (!surat_text) {
       return res.status(400).json({
         error: "Draft surat tidak ditemukan."
+      });
+    }
+
+    if (!draft_id) {
+      return res.status(400).json({
+        error: "Draft ID tidak ditemukan."
       });
     }
 
@@ -25,7 +32,6 @@ export default async function handler(req, res) {
     const supabaseKey =
       process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-
     if (
       !serverKey ||
       !supabaseUrl ||
@@ -36,10 +42,8 @@ export default async function handler(req, res) {
       });
     }
 
-
     const orderId =
       "SURAT-" + Date.now();
-
 
     // SIMPAN DRAFT KE SUPABASE
     const saveResponse = await fetch(
@@ -62,29 +66,31 @@ export default async function handler(req, res) {
 
         body: JSON.stringify({
           order_id: orderId,
+          draft_id: draft_id,
           surat_text: surat_text,
           payment_status: "pending"
         })
       }
     );
 
+    if (!saveResponse.ok) {
+      const errorText = await saveResponse.text();
 
-if (!saveResponse.ok) {
-  const errorText = await saveResponse.text();
+      console.error(
+        "Supabase error:",
+        errorText
+      );
 
-  console.error("Supabase error:", errorText);
-
-  return res.status(500).json({
-    error: `Supabase: ${errorText}`
-  });
-}
+      return res.status(500).json({
+        error: `Supabase: ${errorText}`
+      });
+    }
 
     // BUAT TRANSAKSI MIDTRANS
     const auth =
       Buffer
         .from(serverKey + ":")
         .toString("base64");
-
 
     const response =
       await fetch(
@@ -122,10 +128,8 @@ if (!saveResponse.ok) {
         }
       );
 
-
     const data =
       await response.json();
-
 
     if (!response.ok) {
       return res
@@ -137,7 +141,6 @@ if (!saveResponse.ok) {
         });
     }
 
-
     return res.status(200).json({
       token:
         data.token,
@@ -146,9 +149,11 @@ if (!saveResponse.ok) {
         data.redirect_url,
 
       order_id:
-        orderId
-    });
+        orderId,
 
+      draft_id:
+        draft_id
+    });
 
   } catch (error) {
     console.error(error);
