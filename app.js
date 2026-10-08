@@ -1,12 +1,16 @@
 "use strict";
 
-/* ==========================================
-   SURAT MENYURAT AI — APP.JS
-   Draft AI + Draft Manual + Multi Layer
-   Pembayaran melekat pada 1 draft
-========================================== */
+/* =========================================================
+   SURAT MENYURAT AI
+   Draft + TTD + Multi Image Layer + Payment
+   Robust drag / resize / delete
+========================================================= */
 
 const $ = id => document.getElementById(id);
+
+/* =========================================================
+   DOM
+========================================================= */
 
 const output = $("output");
 const preview = $("suratPreview");
@@ -14,6 +18,7 @@ const statusBox = $("status");
 
 const generateBtn = $("generateBtn");
 const regenerateBtn = $("regenerateBtn");
+
 const copyBtn = $("copyBtn");
 const editBtn = $("editBtn");
 const printBtn = $("printBtn");
@@ -23,15 +28,24 @@ const clearSignatureBtn = $("clearSignatureBtn");
 const addSignatureBtn = $("addSignatureBtn");
 
 const imageUpload = $("imageUpload");
+
 const sendBackwardBtn = $("sendLayerBackwardBtn");
 const bringForwardBtn = $("bringLayerForwardBtn");
 const deleteLayerBtn = $("deleteSelectedLayerBtn");
 
 const paymentModal = $("paymentInfoModal");
 const printModal = $("printModal");
+
 const continuePaymentBtn = $("continuePaymentBtn");
 
-const STORAGE_KEY = "surat_editor_v4";
+const wordBtn = $("wordBtn");
+const pdfBtn = $("pdfBtn");
+
+/* =========================================================
+   KONSTANTA
+========================================================= */
+
+const STORAGE_KEY = "surat_editor_v5";
 
 const PLACEHOLDER_TEXT =
   "Hasil surat akan muncul di sini...";
@@ -41,30 +55,186 @@ const PLACEHOLDER_FULL =
 
 Sudah punya draft sendiri? Hapus teks ini lalu tempelkan naskah surat Anda langsung di area ini.`;
 
-let layers = [];
-let selectedId = null;
-
-let draftId = null;
-let currentOrderId = null;
-let paidOrderId = null;
-
-let draftSource = null;
-// nilai:
-// null
-// "ai"
-// "manual"
-
-let busy = false;
-let restoring = false;
-let signatureHasInk = false;
-
 const A4_WIDTH = 794;
 const A4_HEIGHT = 1123;
 
+/*
+  Layer gambar menggunakan z-index mulai 20.
+  Teks pada index.html memiliki z-index 10.
 
-/* ==========================================
+  Jadi gambar tetap bisa diklik dengan stabil.
+*/
+const LAYER_Z_BASE = 20;
+
+/* =========================================================
+   STATE
+========================================================= */
+
+let layers = [];
+
+let selectedId = null;
+
+let draftId = null;
+let draftSource = null;
+
+let currentOrderId = null;
+let paidOrderId = null;
+
+let restoring = false;
+let busy = false;
+
+let signatureHasInk = false;
+
+/*
+  Interaction global:
+  jauh lebih stabil daripada memasang pointermove
+  hanya di elemen layer.
+*/
+let interaction = null;
+
+/* =========================================================
+   STYLE TAMBAHAN EDITOR
+   Tidak perlu ubah index.html
+========================================================= */
+
+function installEditorStyles() {
+  const style = document.createElement("style");
+
+  style.textContent = `
+    .editor-layer {
+      position: absolute;
+      user-select: none;
+      touch-action: none;
+      cursor: grab;
+      box-sizing: border-box;
+    }
+
+    .editor-layer:active {
+      cursor: grabbing;
+    }
+
+    .editor-layer img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+
+    .editor-layer.layer-selected {
+      outline: 2px dashed #2563eb;
+      outline-offset: 2px;
+    }
+
+    .editor-layer .resize-handle {
+      position: absolute;
+
+      right: -14px;
+      bottom: -14px;
+
+      width: 30px;
+      height: 30px;
+
+      border-radius: 999px;
+
+      background: #2563eb;
+      border: 3px solid white;
+
+      box-shadow:
+        0 2px 8px rgba(0,0,0,.30);
+
+      cursor: nwse-resize;
+
+      touch-action: none;
+
+      z-index: 10000;
+    }
+
+    .editor-layer .delete-layer {
+      position: absolute;
+
+      right: -15px;
+      top: -15px;
+
+      width: 32px;
+      height: 32px;
+
+      border: 0;
+      border-radius: 999px;
+
+      background: #dc2626;
+      color: white;
+
+      font-size: 21px;
+      font-weight: 500;
+      line-height: 1;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      cursor: pointer;
+
+      box-shadow:
+        0 2px 8px rgba(0,0,0,.30);
+
+      touch-action: manipulation;
+
+      z-index: 10001;
+    }
+
+    .editor-layer:not(.layer-selected)
+    .resize-handle,
+
+    .editor-layer:not(.layer-selected)
+    .delete-layer {
+      display: none;
+    }
+
+    @media (max-width: 768px) {
+
+      .editor-layer .resize-handle {
+        width: 34px;
+        height: 34px;
+
+        right: -17px;
+        bottom: -17px;
+      }
+
+      .editor-layer .delete-layer {
+        width: 36px;
+        height: 36px;
+
+        right: -18px;
+        top: -18px;
+
+        font-size: 23px;
+      }
+    }
+
+    @media print {
+
+      .editor-layer {
+        outline: none !important;
+      }
+
+      .resize-handle,
+      .delete-layer {
+        display: none !important;
+      }
+    }
+  `;
+
+  document.head.appendChild(style);
+}
+
+installEditorStyles();
+
+/* =========================================================
    UTILITAS
-========================================== */
+========================================================= */
 
 function showStatus(message, type = "info") {
   if (!statusBox) return;
@@ -82,14 +252,12 @@ function showStatus(message, type = "info") {
   statusBox.textContent = message;
 }
 
-
 function openModal(element) {
   if (!element) return;
 
   element.classList.remove("hidden");
   element.classList.add("flex");
 }
-
 
 function closeModal(element) {
   if (!element) return;
@@ -98,31 +266,11 @@ function closeModal(element) {
   element.classList.remove("flex");
 }
 
-
-function getText() {
-  return output.innerText.trim();
-}
-
-
-function isPlaceholderText(text) {
-  const cleaned = String(text || "").trim();
-
-  return (
-    !cleaned ||
-    cleaned === PLACEHOLDER_TEXT ||
-    cleaned === PLACEHOLDER_FULL.trim() ||
-    cleaned.startsWith(PLACEHOLDER_TEXT)
-  );
-}
-
-
-function hasDraft() {
-  return !isPlaceholderText(getText());
-}
-
-
 function newId() {
-  if (crypto && crypto.randomUUID) {
+  if (
+    typeof crypto !== "undefined" &&
+    crypto.randomUUID
+  ) {
     return crypto.randomUUID();
   }
 
@@ -132,15 +280,49 @@ function newId() {
   );
 }
 
+function getText() {
+  return output.innerText.trim();
+}
+
+function isPlaceholderText(text) {
+  const clean = String(text || "").trim();
+
+  return (
+    !clean ||
+    clean === PLACEHOLDER_TEXT ||
+    clean === PLACEHOLDER_FULL.trim() ||
+    clean.startsWith(PLACEHOLDER_TEXT)
+  );
+}
+
+function hasDraft() {
+  return !isPlaceholderText(getText());
+}
 
 function escapeHtml(text) {
   return String(text)
+
     .replace(/&/g, "&amp;")
+
     .replace(/</g, "&lt;")
+
     .replace(/>/g, "&gt;")
+
     .replace(/"/g, "&quot;");
 }
 
+function scaleFactor() {
+  if (!preview.clientWidth) return 1;
+
+  return preview.clientWidth / A4_WIDTH;
+}
+
+function clamp(value, min, max) {
+  return Math.min(
+    Math.max(value, min),
+    max
+  );
+}
 
 function setBusy(value) {
   busy = value;
@@ -148,19 +330,20 @@ function setBusy(value) {
   if (!continuePaymentBtn) return;
 
   continuePaymentBtn.disabled = value;
+
   continuePaymentBtn.textContent =
     value
       ? "⏳ Menyiapkan..."
       : "Lanjut Cetak";
 }
 
-
-/* ==========================================
+/* =========================================================
    DRAFT SESSION
-========================================== */
+========================================================= */
 
 function createFreshDraftSession(source = "manual") {
   draftId = newId();
+
   draftSource = source;
 
   currentOrderId = null;
@@ -168,7 +351,6 @@ function createFreshDraftSession(source = "manual") {
 
   saveState();
 }
-
 
 function ensureManualDraftSession() {
   if (!hasDraft()) return;
@@ -179,14 +361,14 @@ function ensureManualDraftSession() {
 
   if (!draftSource) {
     draftSource = "manual";
+
     saveState();
   }
 }
 
-
-/* ==========================================
+/* =========================================================
    SAVE / RESTORE
-========================================== */
+========================================================= */
 
 function saveState() {
   if (restoring) return;
@@ -194,16 +376,26 @@ function saveState() {
   const state = {
     draftId,
     draftSource,
+
     text: getText(),
+
     layers,
+
     currentOrderId,
     paidOrderId,
 
     form: {
-      jenis: $("jenis")?.value || "",
-      nama: $("nama")?.value || "",
-      penerima: $("penerima")?.value || "",
-      detail: $("detail")?.value || ""
+      jenis:
+        $("jenis")?.value || "",
+
+      nama:
+        $("nama")?.value || "",
+
+      penerima:
+        $("penerima")?.value || "",
+
+      detail:
+        $("detail")?.value || ""
     }
   };
 
@@ -212,30 +404,39 @@ function saveState() {
       STORAGE_KEY,
       JSON.stringify(state)
     );
+
   } catch (error) {
-    console.warn("Penyimpanan lokal penuh:", error);
+    console.warn(
+      "Local storage penuh:",
+      error
+    );
 
     showStatus(
-      "Data editor terlalu besar untuk penyimpanan browser. " +
-      "Coba gunakan gambar dengan ukuran file lebih kecil.",
+      "Penyimpanan browser penuh. Gunakan gambar dengan ukuran file lebih kecil.",
       "error"
     );
   }
 }
 
-
 function restoreState() {
-  const raw = localStorage.getItem(STORAGE_KEY);
+  const raw =
+    localStorage.getItem(
+      STORAGE_KEY
+    );
 
   if (!raw) return;
 
   try {
     restoring = true;
 
-    const state = JSON.parse(raw);
+    const state =
+      JSON.parse(raw);
 
-    draftId = state.draftId || null;
-    draftSource = state.draftSource || null;
+    draftId =
+      state.draftId || null;
+
+    draftSource =
+      state.draftSource || null;
 
     currentOrderId =
       state.currentOrderId || null;
@@ -245,56 +446,77 @@ function restoreState() {
 
     if (
       state.text &&
-      !isPlaceholderText(state.text)
+      !isPlaceholderText(
+        state.text
+      )
     ) {
-      output.textContent = state.text;
+      output.textContent =
+        state.text;
     }
 
-    const form = state.form || {};
+    const form =
+      state.form || {};
 
-    for (const key of [
+    [
       "jenis",
       "nama",
       "penerima",
       "detail"
-    ]) {
+    ].forEach(id => {
+
       if (
-        form[key] !== undefined &&
-        $(key)
+        $(id) &&
+        form[id] !== undefined
       ) {
-        $(key).value = form[key];
+        $(id).value =
+          form[id];
       }
-    }
 
-    layers = Array.isArray(state.layers)
-      ? state.layers
-      : [];
+    });
 
-    renderLayers();
+    layers =
+      Array.isArray(state.layers)
+        ? state.layers
+        : [];
 
   } catch (error) {
-    console.error("Restore gagal:", error);
+    console.error(
+      "Restore gagal:",
+      error
+    );
+
   } finally {
     restoring = false;
   }
 }
 
-
-/* ==========================================
-   GENERATE SURAT AI
-========================================== */
+/* =========================================================
+   GENERATE SURAT
+========================================================= */
 
 async function generateSurat() {
-  const jenis = $("jenis").value;
-  const nama = $("nama").value.trim();
-  const penerima = $("penerima").value.trim();
-  const detail = $("detail").value.trim();
+  const jenis =
+    $("jenis").value;
 
-  if (!nama || !penerima || !detail) {
+  const nama =
+    $("nama").value.trim();
+
+  const penerima =
+    $("penerima").value.trim();
+
+  const detail =
+    $("detail").value.trim();
+
+  if (
+    !nama ||
+    !penerima ||
+    !detail
+  ) {
     showStatus(
       "Lengkapi nama, penerima, dan rincian surat.",
       "error"
     );
+
     return;
   }
 
@@ -305,25 +527,35 @@ async function generateSurat() {
     "⏳ Menyusun surat...";
 
   try {
+
     const response =
-      await fetch("/api/generate", {
-        method: "POST",
+      await fetch(
+        "/api/generate",
+        {
+          method: "POST",
 
-        headers: {
-          "Content-Type": "application/json"
-        },
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
 
-        body: JSON.stringify({
-          jenis,
-          nama,
-          penerima,
-          detail
-        })
-      });
+          body:
+            JSON.stringify({
+              jenis,
+              nama,
+              penerima,
+              detail
+            })
+        }
+      );
 
-    const data = await response.json();
+    const data =
+      await response.json();
 
-    if (!response.ok || !data.result) {
+    if (
+      !response.ok ||
+      !data.result
+    ) {
       throw new Error(
         data.error ||
         "Gagal membuat surat."
@@ -331,32 +563,33 @@ async function generateSurat() {
     }
 
     /*
-      HANYA DI SINI pembayaran di-reset.
-
-      Artinya:
-      klik "Buat Draft Surat" lagi
-      = draft baru
-      = harus bayar lagi ketika cetak.
+      Generate lagi =
+      draft baru =
+      pembayaran baru.
     */
-    createFreshDraftSession("ai");
+
+    createFreshDraftSession(
+      "ai"
+    );
 
     layers = [];
+
     selectedId = null;
 
     output.textContent =
       data.result.trim();
 
     renderLayers();
+
     saveState();
 
     showStatus(
-      "Draft baru berhasil dibuat. " +
-      "Anda dapat mengedit, menambahkan tanda tangan, " +
-      "atau menambahkan gambar sebelum mencetak.",
+      "Draft baru berhasil dibuat.",
       "success"
     );
 
   } catch (error) {
+
     console.error(error);
 
     showStatus(
@@ -366,14 +599,15 @@ async function generateSurat() {
     );
 
   } finally {
+
     generateBtn.disabled = false;
+
     regenerateBtn.disabled = false;
 
     generateBtn.textContent =
       "✨ Buat Draft Surat";
   }
 }
-
 
 generateBtn.addEventListener(
   "click",
@@ -385,86 +619,101 @@ regenerateBtn.addEventListener(
   generateSurat
 );
 
-
-/* ==========================================
+/* =========================================================
    EDIT TEKS
-========================================== */
+========================================================= */
 
 let editTimer = null;
 
-output.addEventListener("input", () => {
-  clearTimeout(editTimer);
+output.addEventListener(
+  "input",
+  () => {
 
-  editTimer = setTimeout(() => {
+    clearTimeout(editTimer);
 
-    /*
-      Pengguna yang langsung menempel draft sendiri
-      otomatis dibuatkan draftId.
+    editTimer =
+      setTimeout(
+        () => {
 
-      Setelah itu seluruh edit tetap dianggap
-      draft yang sama.
-    */
-    ensureManualDraftSession();
+          ensureManualDraftSession();
 
-    saveState();
+          saveState();
 
-  }, 400);
-});
-
-
-output.addEventListener("paste", () => {
-  setTimeout(() => {
-    ensureManualDraftSession();
-    saveState();
-  }, 50);
-});
-
-
-editBtn.addEventListener("click", () => {
-  const editing =
-    output.getAttribute("contenteditable") ===
-    "true";
-
-  if (editing) {
-    output.setAttribute(
-      "contenteditable",
-      "false"
-    );
-
-    editBtn.textContent = "✏️ Edit";
-
-    output.classList.remove(
-      "ring-2",
-      "ring-blue-300"
-    );
-
-    ensureManualDraftSession();
-    saveState();
-
-  } else {
-    output.setAttribute(
-      "contenteditable",
-      "true"
-    );
-
-    editBtn.textContent =
-      "💾 Selesai Edit";
-
-    output.classList.add(
-      "ring-2",
-      "ring-blue-300"
-    );
-
-    output.focus();
+        },
+        400
+      );
   }
-});
+);
 
+output.addEventListener(
+  "paste",
+  () => {
+
+    setTimeout(
+      () => {
+
+        ensureManualDraftSession();
+
+        saveState();
+
+      },
+      50
+    );
+  }
+);
+
+editBtn.addEventListener(
+  "click",
+  () => {
+
+    const editing =
+      output.getAttribute(
+        "contenteditable"
+      ) === "true";
+
+    if (editing) {
+
+      output.setAttribute(
+        "contenteditable",
+        "false"
+      );
+
+      editBtn.textContent =
+        "✏️ Edit";
+
+      output.classList.remove(
+        "ring-2",
+        "ring-blue-300"
+      );
+
+      saveState();
+
+    } else {
+
+      output.setAttribute(
+        "contenteditable",
+        "true"
+      );
+
+      editBtn.textContent =
+        "💾 Selesai Edit";
+
+      output.classList.add(
+        "ring-2",
+        "ring-blue-300"
+      );
+
+      output.focus();
+    }
+  }
+);
 
 copyBtn.addEventListener(
   "click",
   async () => {
 
     if (!hasDraft()) {
+
       showStatus(
         "Belum ada surat untuk disalin.",
         "error"
@@ -474,9 +723,11 @@ copyBtn.addEventListener(
     }
 
     try {
-      await navigator.clipboard.writeText(
-        getText()
-      );
+
+      await navigator.clipboard
+        .writeText(
+          getText()
+        );
 
       showStatus(
         "Teks berhasil disalin.",
@@ -484,6 +735,7 @@ copyBtn.addEventListener(
       );
 
     } catch {
+
       showStatus(
         "Gagal menyalin teks.",
         "error"
@@ -492,40 +744,54 @@ copyBtn.addEventListener(
   }
 );
 
-
-/* ==========================================
-   CANVAS TANDA TANGAN
-========================================== */
+/* =========================================================
+   SIGNATURE CANVAS
+========================================================= */
 
 const ctx =
-  signaturePad.getContext("2d");
+  signaturePad.getContext(
+    "2d"
+  );
 
 ctx.lineWidth = 3;
-ctx.lineCap = "round";
-ctx.lineJoin = "round";
-ctx.strokeStyle = "#111827";
+
+ctx.lineCap =
+  "round";
+
+ctx.lineJoin =
+  "round";
+
+ctx.strokeStyle =
+  "#111827";
 
 let drawing = false;
 let lastPoint = null;
 
-
 function canvasPoint(event) {
+
   const rect =
-    signaturePad.getBoundingClientRect();
+    signaturePad
+      .getBoundingClientRect();
 
   return {
+
     x:
-      (event.clientX - rect.left) *
+      (
+        event.clientX -
+        rect.left
+      ) *
       signaturePad.width /
       rect.width,
 
     y:
-      (event.clientY - rect.top) *
+      (
+        event.clientY -
+        rect.top
+      ) *
       signaturePad.height /
       rect.height
   };
 }
-
 
 signaturePad.addEventListener(
   "pointerdown",
@@ -534,14 +800,18 @@ signaturePad.addEventListener(
     event.preventDefault();
 
     drawing = true;
+
     signatureHasInk = true;
 
     lastPoint =
       canvasPoint(event);
 
-    signaturePad.setPointerCapture(
-      event.pointerId
-    );
+    try {
+      signaturePad
+        .setPointerCapture(
+          event.pointerId
+        );
+    } catch {}
 
     ctx.beginPath();
 
@@ -553,17 +823,20 @@ signaturePad.addEventListener(
       Math.PI * 2
     );
 
-    ctx.fillStyle = "#111827";
+    ctx.fillStyle =
+      "#111827";
+
     ctx.fill();
   }
 );
-
 
 signaturePad.addEventListener(
   "pointermove",
   event => {
 
     if (!drawing) return;
+
+    event.preventDefault();
 
     const point =
       canvasPoint(event);
@@ -586,23 +859,21 @@ signaturePad.addEventListener(
   }
 );
 
-
-function stopDrawing() {
+function stopSignatureDrawing() {
   drawing = false;
+
   lastPoint = null;
 }
 
-
 signaturePad.addEventListener(
   "pointerup",
-  stopDrawing
+  stopSignatureDrawing
 );
 
 signaturePad.addEventListener(
   "pointercancel",
-  stopDrawing
+  stopSignatureDrawing
 );
-
 
 clearSignatureBtn.addEventListener(
   "click",
@@ -623,12 +894,12 @@ clearSignatureBtn.addEventListener(
   }
 );
 
-
-/* ==========================================
-   POTONG AREA TRANSPARAN TTD
-========================================== */
+/* =========================================================
+   CROP SIGNATURE
+========================================================= */
 
 function trimTransparentCanvas(canvas) {
+
   const context =
     canvas.getContext("2d");
 
@@ -640,10 +911,14 @@ function trimTransparentCanvas(canvas) {
       canvas.height
     );
 
-  const pixels = image.data;
+  const data =
+    image.data;
 
-  let minX = canvas.width;
-  let minY = canvas.height;
+  let minX =
+    canvas.width;
+
+  let minY =
+    canvas.height;
 
   let maxX = -1;
   let maxY = -1;
@@ -653,24 +928,49 @@ function trimTransparentCanvas(canvas) {
     y < canvas.height;
     y++
   ) {
+
     for (
       let x = 0;
       x < canvas.width;
       x++
     ) {
+
       const alpha =
-        pixels[
-          (y * canvas.width + x) *
+        data[
+          (
+            y *
+            canvas.width +
+            x
+          ) *
           4 +
           3
         ];
 
       if (alpha > 0) {
-        minX = Math.min(minX, x);
-        minY = Math.min(minY, y);
 
-        maxX = Math.max(maxX, x);
-        maxY = Math.max(maxY, y);
+        minX =
+          Math.min(
+            minX,
+            x
+          );
+
+        minY =
+          Math.min(
+            minY,
+            y
+          );
+
+        maxX =
+          Math.max(
+            maxX,
+            x
+          );
+
+        maxY =
+          Math.max(
+            maxY,
+            y
+          );
       }
     }
   }
@@ -679,30 +979,30 @@ function trimTransparentCanvas(canvas) {
     return null;
   }
 
-  const pad = 12;
+  const padding = 12;
 
   minX =
     Math.max(
       0,
-      minX - pad
+      minX - padding
     );
 
   minY =
     Math.max(
       0,
-      minY - pad
+      minY - padding
     );
 
   maxX =
     Math.min(
       canvas.width - 1,
-      maxX + pad
+      maxX + padding
     );
 
   maxY =
     Math.min(
       canvas.height - 1,
-      maxY + pad
+      maxY + padding
     );
 
   const width =
@@ -712,10 +1012,15 @@ function trimTransparentCanvas(canvas) {
     maxY - minY + 1;
 
   const cropped =
-    document.createElement("canvas");
+    document.createElement(
+      "canvas"
+    );
 
-  cropped.width = width;
-  cropped.height = height;
+  cropped.width =
+    width;
+
+  cropped.height =
+    height;
 
   cropped
     .getContext("2d")
@@ -734,6 +1039,7 @@ function trimTransparentCanvas(canvas) {
     );
 
   return {
+
     src:
       cropped.toDataURL(
         "image/png"
@@ -744,14 +1050,18 @@ function trimTransparentCanvas(canvas) {
   };
 }
 
+/* =========================================================
+   ADD SIGNATURE
+========================================================= */
 
 addSignatureBtn.addEventListener(
   "click",
   () => {
 
     if (!hasDraft()) {
+
       showStatus(
-        "Masukkan atau buat draft surat terlebih dahulu.",
+        "Buat atau masukkan draft surat terlebih dahulu.",
         "error"
       );
 
@@ -759,6 +1069,7 @@ addSignatureBtn.addEventListener(
     }
 
     if (!signatureHasInk) {
+
       showStatus(
         "Gambar tanda tangan terlebih dahulu.",
         "error"
@@ -777,7 +1088,9 @@ addSignatureBtn.addEventListener(
     if (!result) return;
 
     addLayer({
-      src: result.src,
+
+      src:
+        result.src,
 
       name:
         "Tanda tangan",
@@ -796,32 +1109,33 @@ addSignatureBtn.addEventListener(
 
       y:
         820
+
     });
 
     showStatus(
-      "Tanda tangan ditambahkan. " +
-      "Geser atau ubah ukurannya sesuai kebutuhan.",
+      "Tanda tangan ditambahkan. Klik tanda tangan untuk mengatur posisi atau ukurannya.",
       "success"
     );
   }
 );
 
-
-/* ==========================================
-   UPLOAD GAMBAR
-========================================== */
+/* =========================================================
+   UPLOAD IMAGE
+========================================================= */
 
 imageUpload.addEventListener(
   "change",
   async event => {
 
     if (!hasDraft()) {
+
       showStatus(
-        "Masukkan atau buat draft surat terlebih dahulu.",
+        "Buat atau masukkan draft surat terlebih dahulu.",
         "error"
       );
 
       imageUpload.value = "";
+
       return;
     }
 
@@ -832,17 +1146,22 @@ imageUpload.addEventListener(
         event.target.files || []
       );
 
-    for (const file of files) {
+    for (
+      const file of files
+    ) {
 
-      const allowed = [
-        "image/png",
-        "image/jpeg",
-        "image/webp"
-      ];
+      if (
+        ![
+          "image/png",
+          "image/jpeg",
+          "image/webp"
+        ].includes(
+          file.type
+        )
+      ) {
 
-      if (!allowed.includes(file.type)) {
         showStatus(
-          "Gunakan file PNG, JPG, atau WebP.",
+          "Gunakan PNG, JPG, atau WebP.",
           "error"
         );
 
@@ -853,6 +1172,7 @@ imageUpload.addEventListener(
         file.size >
         5 * 1024 * 1024
       ) {
+
         showStatus(
           "Ukuran gambar maksimal 5 MB.",
           "error"
@@ -862,8 +1182,11 @@ imageUpload.addEventListener(
       }
 
       try {
+
         const src =
-          await readImage(file);
+          await readImage(
+            file
+          );
 
         const dimensions =
           await getImageDimensions(
@@ -871,6 +1194,7 @@ imageUpload.addEventListener(
           );
 
         addLayer({
+
           src,
 
           name:
@@ -891,9 +1215,11 @@ imageUpload.addEventListener(
 
           y:
             70
+
         });
 
       } catch (error) {
+
         console.error(error);
 
         showStatus(
@@ -907,10 +1233,13 @@ imageUpload.addEventListener(
   }
 );
 
-
 function readImage(file) {
+
   return new Promise(
-    (resolve, reject) => {
+    (
+      resolve,
+      reject
+    ) => {
 
       const reader =
         new FileReader();
@@ -924,72 +1253,128 @@ function readImage(file) {
       reader.onerror =
         reject;
 
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(
+        file
+      );
     }
   );
 }
 
-
 function getImageDimensions(src) {
+
   return new Promise(
-    (resolve, reject) => {
+    (
+      resolve,
+      reject
+    ) => {
 
       const img =
         new Image();
 
       img.onload =
-        () =>
+        () => {
+
           resolve({
+
             width:
               img.naturalWidth,
 
             height:
               img.naturalHeight
+
           });
+        };
 
       img.onerror =
         reject;
 
-      img.src = src;
+      img.src =
+        src;
     }
   );
 }
 
+/* =========================================================
+   LAYER
+========================================================= */
 
-/* ==========================================
-   SISTEM MULTI LAYER
-========================================== */
+function normalizeLayerOrder() {
+
+  const sorted =
+    [...layers]
+      .sort(
+        (a, b) =>
+          (a.z || 0) -
+          (b.z || 0)
+      );
+
+  sorted.forEach(
+    (
+      layer,
+      index
+    ) => {
+
+      layer.z =
+        index + 1;
+    }
+  );
+}
 
 function addLayer(config) {
+
   ensureManualDraftSession();
 
+  normalizeLayerOrder();
+
+  const maxZ =
+    layers.length
+      ? Math.max(
+          ...layers.map(
+            item =>
+              item.z || 1
+          )
+        )
+      : 0;
+
   const layer = {
+
     id:
       newId(),
 
     name:
-      config.name,
+      config.name ||
+      "Gambar",
 
     type:
-      config.type,
+      config.type ||
+      "image",
 
     src:
       config.src,
 
     x:
-      config.x,
+      Number(
+        config.x || 0
+      ),
 
     y:
-      config.y,
+      Number(
+        config.y || 0
+      ),
 
     width:
-      config.width,
+      Number(
+        config.width || 150
+      ),
 
     ratio:
-      config.ratio,
+      Number(
+        config.ratio || 1
+      ),
 
     z:
-      layers.length + 1
+      maxZ + 1
+
   };
 
   layers.push(layer);
@@ -998,27 +1383,35 @@ function addLayer(config) {
     layer.id;
 
   renderLayers();
+
   saveState();
 }
 
+function getLayer(id) {
 
-function getSelectedLayer() {
   return layers.find(
     layer =>
-      layer.id === selectedId
+      layer.id === id
   );
 }
 
+function getSelectedLayer() {
 
-function scaleFactor() {
-  return (
-    preview.clientWidth /
-    A4_WIDTH
+  if (!selectedId) {
+    return null;
+  }
+
+  return getLayer(
+    selectedId
   );
 }
 
+/* =========================================================
+   RENDER LAYERS
+========================================================= */
 
 function renderLayers() {
+
   preview
     .querySelectorAll(
       ".editor-layer"
@@ -1028,132 +1421,177 @@ function renderLayers() {
         element.remove()
     );
 
+  normalizeLayerOrder();
+
   const scale =
     scaleFactor();
 
-  for (const layer of layers) {
+  layers.forEach(
+    layer => {
 
-    const element =
-      document.createElement(
-        "div"
+      const element =
+        document.createElement(
+          "div"
+        );
+
+      element.className =
+        "editor-layer";
+
+      element.dataset.layerId =
+        layer.id;
+
+      if (
+        selectedId ===
+        layer.id
+      ) {
+
+        element.classList.add(
+          "layer-selected"
+        );
+      }
+
+      element.style.left =
+        `${layer.x * scale}px`;
+
+      element.style.top =
+        `${layer.y * scale}px`;
+
+      element.style.width =
+        `${layer.width * scale}px`;
+
+      element.style.height =
+        `${
+          (
+            layer.width /
+            layer.ratio
+          ) *
+          scale
+        }px`;
+
+      /*
+        Semua gambar berada di atas text,
+        supaya selalu bisa dipilih.
+
+        Order antar gambar tetap mengikuti layer.z.
+      */
+      element.style.zIndex =
+        String(
+          LAYER_Z_BASE +
+          layer.z
+        );
+
+      element.title =
+        "Klik untuk memilih. Geser untuk memindahkan.";
+
+      const img =
+        document.createElement(
+          "img"
+        );
+
+      img.src =
+        layer.src;
+
+      img.alt =
+        layer.name || "";
+
+      img.draggable =
+        false;
+
+      element.appendChild(
+        img
       );
 
-    element.className =
-      "editor-layer";
+      const resize =
+        document.createElement(
+          "div"
+        );
 
-    element.dataset.layerId =
-      layer.id;
+      resize.className =
+        "resize-handle";
 
-    if (
-      selectedId === layer.id
-    ) {
-      element.classList.add(
-        "layer-selected"
+      resize.title =
+        "Tarik untuk memperbesar / memperkecil";
+
+      element.appendChild(
+        resize
+      );
+
+      const remove =
+        document.createElement(
+          "button"
+        );
+
+      remove.type =
+        "button";
+
+      remove.className =
+        "delete-layer";
+
+      remove.innerHTML =
+        "&times;";
+
+      remove.title =
+        "Hapus gambar";
+
+      element.appendChild(
+        remove
+      );
+
+      preview.appendChild(
+        element
+      );
+
+      attachLayerEvents(
+        element,
+        layer,
+        resize,
+        remove
       );
     }
-
-    element.style.left =
-      `${layer.x * scale}px`;
-
-    element.style.top =
-      `${layer.y * scale}px`;
-
-    element.style.width =
-      `${layer.width * scale}px`;
-
-    element.style.height =
-      `${
-        layer.width /
-        layer.ratio *
-        scale
-      }px`;
-
-    element.style.zIndex =
-      String(layer.z);
-
-    const img =
-      document.createElement(
-        "img"
-      );
-
-    img.src =
-      layer.src;
-
-    img.alt =
-      layer.name;
-
-    img.draggable =
-      false;
-
-    element.appendChild(img);
-
-
-    const resize =
-      document.createElement(
-        "div"
-      );
-
-    resize.className =
-      "resize-handle";
-
-
-    const remove =
-      document.createElement(
-        "button"
-      );
-
-    remove.className =
-      "delete-layer";
-
-    remove.type =
-      "button";
-
-    remove.textContent =
-      "×";
-
-    remove.title =
-      "Hapus layer";
-
-    element.appendChild(
-      resize
-    );
-
-    element.appendChild(
-      remove
-    );
-
-    preview.appendChild(
-      element
-    );
-
-    attachLayerEvents(
-      element,
-      layer,
-      resize,
-      remove
-    );
-  }
+  );
 }
 
+/* =========================================================
+   SELECT
+========================================================= */
 
-/* ==========================================
-   DRAG / RESIZE LAYER
-========================================== */
+function selectLayer(id) {
+
+  selectedId = id;
+
+  renderLayers();
+}
+
+/* =========================================================
+   DRAG / RESIZE
+   GLOBAL POINTER SYSTEM
+========================================================= */
 
 function attachLayerEvents(
   element,
   layer,
-  resize,
-  remove
+  resizeHandle,
+  deleteButton
 ) {
+
+  /*
+    SELECT + DRAG
+  */
 
   element.addEventListener(
     "pointerdown",
     event => {
 
       if (
-        event.target === resize ||
-        event.target === remove
+        event.target ===
+        resizeHandle
+      ) {
+        return;
+      }
+
+      if (
+        event.target ===
+        deleteButton
       ) {
         return;
       }
@@ -1164,115 +1602,59 @@ function attachLayerEvents(
       selectedId =
         layer.id;
 
-      const startX =
-        event.clientX;
+      document
+        .querySelectorAll(
+          ".editor-layer"
+        )
+        .forEach(el => {
 
-      const startY =
-        event.clientY;
+          el.classList.remove(
+            "layer-selected"
+          );
 
-      const originalX =
-        layer.x;
-
-      const originalY =
-        layer.y;
-
-      const scale =
-        scaleFactor();
-
-      element.setPointerCapture(
-        event.pointerId
-      );
+        });
 
       element.classList.add(
         "layer-selected"
       );
 
-      function move(e) {
-        const dx =
-          (
-            e.clientX -
-            startX
-          ) /
-          scale;
+      const scale =
+        scaleFactor();
 
-        const dy =
-          (
-            e.clientY -
-            startY
-          ) /
-          scale;
+      interaction = {
 
-        layer.x =
-          Math.max(
-            0,
-            Math.min(
-              A4_WIDTH -
-              layer.width,
+        mode:
+          "drag",
 
-              originalX + dx
-            )
-          );
+        layerId:
+          layer.id,
 
-        layer.y =
-          Math.max(
-            0,
-            Math.min(
-              A4_HEIGHT -
-              (
-                layer.width /
-                layer.ratio
-              ),
+        pointerId:
+          event.pointerId,
 
-              originalY + dy
-            )
-          );
+        startClientX:
+          event.clientX,
 
-        element.style.left =
-          `${layer.x * scale}px`;
+        startClientY:
+          event.clientY,
 
-        element.style.top =
-          `${layer.y * scale}px`;
-      }
+        startX:
+          layer.x,
 
-      function end() {
-        element.removeEventListener(
-          "pointermove",
-          move
-        );
+        startY:
+          layer.y,
 
-        element.removeEventListener(
-          "pointerup",
-          end
-        );
+        scale
 
-        element.removeEventListener(
-          "pointercancel",
-          end
-        );
-
-        renderLayers();
-        saveState();
-      }
-
-      element.addEventListener(
-        "pointermove",
-        move
-      );
-
-      element.addEventListener(
-        "pointerup",
-        end
-      );
-
-      element.addEventListener(
-        "pointercancel",
-        end
-      );
+      };
     }
   );
 
+  /*
+    RESIZE
+  */
 
-  resize.addEventListener(
+  resizeHandle.addEventListener(
     "pointerdown",
     event => {
 
@@ -1282,108 +1664,46 @@ function attachLayerEvents(
       selectedId =
         layer.id;
 
-      const startX =
-        event.clientX;
-
-      const originalWidth =
-        layer.width;
-
       const scale =
         scaleFactor();
 
-      resize.setPointerCapture(
-        event.pointerId
-      );
+      interaction = {
 
-      function move(e) {
+        mode:
+          "resize",
 
-        const dx =
-          (
-            e.clientX -
-            startX
-          ) /
-          scale;
+        layerId:
+          layer.id,
 
-        const maxWidth =
-          Math.min(
-            A4_WIDTH -
-            layer.x,
+        pointerId:
+          event.pointerId,
 
-            (
-              A4_HEIGHT -
-              layer.y
-            ) *
-            layer.ratio
-          );
+        startClientX:
+          event.clientX,
 
-        const minWidth =
-          Math.min(
-            35,
-            maxWidth
-          );
+        startWidth:
+          layer.width,
 
-        layer.width =
-          Math.max(
-            minWidth,
+        scale
 
-            Math.min(
-              maxWidth,
-
-              originalWidth +
-              dx
-            )
-          );
-
-        element.style.width =
-          `${layer.width * scale}px`;
-
-        element.style.height =
-          `${
-            layer.width /
-            layer.ratio *
-            scale
-          }px`;
-      }
-
-      function end() {
-        resize.removeEventListener(
-          "pointermove",
-          move
-        );
-
-        resize.removeEventListener(
-          "pointerup",
-          end
-        );
-
-        resize.removeEventListener(
-          "pointercancel",
-          end
-        );
-
-        renderLayers();
-        saveState();
-      }
-
-      resize.addEventListener(
-        "pointermove",
-        move
-      );
-
-      resize.addEventListener(
-        "pointerup",
-        end
-      );
-
-      resize.addEventListener(
-        "pointercancel",
-        end
-      );
+      };
     }
   );
 
+  /*
+    DELETE
+  */
 
-  remove.addEventListener(
+  deleteButton.addEventListener(
+    "pointerdown",
+    event => {
+
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  );
+
+  deleteButton.addEventListener(
     "click",
     event => {
 
@@ -1397,12 +1717,234 @@ function attachLayerEvents(
   );
 }
 
+/* =========================================================
+   GLOBAL MOVE
+========================================================= */
 
-/* ==========================================
-   DELETE LAYER
-========================================== */
+document.addEventListener(
+  "pointermove",
+  event => {
+
+    if (!interaction) {
+      return;
+    }
+
+    if (
+      interaction.pointerId !==
+      event.pointerId
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const layer =
+      getLayer(
+        interaction.layerId
+      );
+
+    if (!layer) {
+      interaction = null;
+      return;
+    }
+
+    const scale =
+      interaction.scale ||
+      scaleFactor();
+
+    if (
+      interaction.mode ===
+      "drag"
+    ) {
+
+      const dx =
+        (
+          event.clientX -
+          interaction.startClientX
+        ) /
+        scale;
+
+      const dy =
+        (
+          event.clientY -
+          interaction.startClientY
+        ) /
+        scale;
+
+      const height =
+        layer.width /
+        layer.ratio;
+
+      layer.x =
+        clamp(
+          interaction.startX +
+          dx,
+          0,
+          Math.max(
+            0,
+            A4_WIDTH -
+            layer.width
+          )
+        );
+
+      layer.y =
+        clamp(
+          interaction.startY +
+          dy,
+          0,
+          Math.max(
+            0,
+            A4_HEIGHT -
+            height
+          )
+        );
+
+    }
+
+    if (
+      interaction.mode ===
+      "resize"
+    ) {
+
+      const dx =
+        (
+          event.clientX -
+          interaction.startClientX
+        ) /
+        scale;
+
+      let width =
+        interaction.startWidth +
+        dx;
+
+      const minWidth =
+        40;
+
+      const maxWidthByPage =
+        A4_WIDTH -
+        layer.x;
+
+      const maxWidthByHeight =
+        (
+          A4_HEIGHT -
+          layer.y
+        ) *
+        layer.ratio;
+
+      const maxWidth =
+        Math.max(
+          minWidth,
+          Math.min(
+            maxWidthByPage,
+            maxWidthByHeight
+          )
+        );
+
+      width =
+        clamp(
+          width,
+          minWidth,
+          maxWidth
+        );
+
+      layer.width =
+        width;
+    }
+
+    /*
+      Update langsung tanpa rebuild DOM.
+      Ini membuat drag lebih mulus.
+    */
+
+    updateLayerElement(
+      layer
+    );
+  },
+  {
+    passive: false
+  }
+);
+
+/* =========================================================
+   GLOBAL END
+========================================================= */
+
+function finishInteraction(
+  event
+) {
+
+  if (!interaction) {
+    return;
+  }
+
+  if (
+    event &&
+    event.pointerId !==
+    interaction.pointerId
+  ) {
+    return;
+  }
+
+  interaction = null;
+
+  saveState();
+
+  renderLayers();
+}
+
+document.addEventListener(
+  "pointerup",
+  finishInteraction
+);
+
+document.addEventListener(
+  "pointercancel",
+  finishInteraction
+);
+
+/* =========================================================
+   UPDATE ONLY ONE ELEMENT
+========================================================= */
+
+function updateLayerElement(
+  layer
+) {
+
+  const element =
+    preview.querySelector(
+      `[data-layer-id="${layer.id}"]`
+    );
+
+  if (!element) return;
+
+  const scale =
+    scaleFactor();
+
+  element.style.left =
+    `${layer.x * scale}px`;
+
+  element.style.top =
+    `${layer.y * scale}px`;
+
+  element.style.width =
+    `${layer.width * scale}px`;
+
+  element.style.height =
+    `${
+      (
+        layer.width /
+        layer.ratio
+      ) *
+      scale
+    }px`;
+}
+
+/* =========================================================
+   DELETE
+========================================================= */
 
 function deleteLayer(id) {
+
   layers =
     layers.filter(
       layer =>
@@ -1415,18 +1957,28 @@ function deleteLayer(id) {
     selectedId = null;
   }
 
-  renderLayers();
-  saveState();
-}
+  interaction = null;
 
+  normalizeLayerOrder();
+
+  renderLayers();
+
+  saveState();
+
+  showStatus(
+    "Layer berhasil dihapus.",
+    "success"
+  );
+}
 
 deleteLayerBtn.addEventListener(
   "click",
   () => {
 
     if (!selectedId) {
+
       showStatus(
-        "Pilih layer terlebih dahulu.",
+        "Klik gambar atau tanda tangan yang ingin dihapus terlebih dahulu.",
         "error"
       );
 
@@ -1439,10 +1991,9 @@ deleteLayerBtn.addEventListener(
   }
 );
 
-
-/* ==========================================
-   URUTAN LAYER
-========================================== */
+/* =========================================================
+   BRING FORWARD
+========================================================= */
 
 bringForwardBtn.addEventListener(
   "click",
@@ -1452,25 +2003,52 @@ bringForwardBtn.addEventListener(
       getSelectedLayer();
 
     if (!layer) {
+
       showStatus(
-        "Pilih layer terlebih dahulu.",
+        "Pilih gambar atau tanda tangan terlebih dahulu.",
         "error"
       );
 
       return;
     }
 
-    layer.z =
-      Math.min(
-        100,
-        layer.z + 1
+    normalizeLayerOrder();
+
+    const maxZ =
+      Math.max(
+        ...layers.map(
+          item =>
+            item.z
+        )
       );
 
+    if (
+      layer.z < maxZ
+    ) {
+
+      const other =
+        layers.find(
+          item =>
+            item.z ===
+            layer.z + 1
+        );
+
+      if (other) {
+        other.z--;
+      }
+
+      layer.z++;
+    }
+
     renderLayers();
+
     saveState();
   }
 );
 
+/* =========================================================
+   SEND BACKWARD
+========================================================= */
 
 sendBackwardBtn.addEventListener(
   "click",
@@ -1480,59 +2058,73 @@ sendBackwardBtn.addEventListener(
       getSelectedLayer();
 
     if (!layer) {
+
       showStatus(
-        "Pilih layer terlebih dahulu.",
+        "Pilih gambar atau tanda tangan terlebih dahulu.",
         "error"
       );
 
       return;
     }
 
-    layer.z =
-      Math.max(
-        1,
-        layer.z - 1
-      );
+    normalizeLayerOrder();
+
+    if (
+      layer.z > 1
+    ) {
+
+      const other =
+        layers.find(
+          item =>
+            item.z ===
+            layer.z - 1
+        );
+
+      if (other) {
+        other.z++;
+      }
+
+      layer.z--;
+    }
 
     renderLayers();
+
     saveState();
   }
 );
 
-
-/* ==========================================
-   DESELECT LAYER
-========================================== */
+/* =========================================================
+   DESELECT
+========================================================= */
 
 preview.addEventListener(
   "pointerdown",
   event => {
 
+    /*
+      Bila yang diklik bukan layer,
+      layer tidak langsung dihapus.
+
+      Hanya selection yang dilepas.
+    */
+
     if (
-      event.target === preview ||
-      event.target === output
+      event.target.closest(
+        ".editor-layer"
+      )
     ) {
-      selectedId = null;
-      renderLayers();
+      return;
     }
+
+    selectedId = null;
+
+    renderLayers();
   }
 );
 
-
-/* ==========================================
+/* =========================================================
    PEMBAYARAN
-========================================== */
-
-/*
-  CATATAN KEAMANAN:
-
-  Browser tidak menentukan sendiri
-  apakah pembayaran sukses.
-
-  Backend /api/get-payment
-  harus mengembalikan payment_status
-  yang telah diverifikasi berdasarkan Midtrans.
-*/
+========================================================= */
 
 async function getPaymentData(
   orderId
@@ -1546,8 +2138,7 @@ async function getPaymentData(
         )
       }`,
       {
-        cache:
-          "no-store"
+        cache: "no-store"
       }
     );
 
@@ -1555,6 +2146,7 @@ async function getPaymentData(
     await response.json();
 
   if (!response.ok) {
+
     throw new Error(
       data.error ||
       "Gagal memeriksa pembayaran."
@@ -1563,7 +2155,6 @@ async function getPaymentData(
 
   return data;
 }
-
 
 async function verifyPayment(
   orderId
@@ -1578,32 +2169,28 @@ async function verifyPayment(
       orderId
     );
 
-  const paidStatuses = [
-    "settlement",
-    "capture"
-  ];
-
-  const paid =
-    paidStatuses.includes(
+  const isPaid =
+    [
+      "settlement",
+      "capture"
+    ].includes(
       data.payment_status
     );
 
-  if (!paid) {
+  if (!isPaid) {
     return false;
   }
 
   /*
-    Pembayaran melekat pada draft_id,
-    bukan isi teks persis.
-
-    Jadi setelah pembayaran:
-    edit teks / TTD / layer tetap sah.
+    Bila backend sudah memiliki draft_id,
+    cocokkan draft.
   */
 
   if (
     data.draft_id &&
     draftId &&
-    data.draft_id !== draftId
+    data.draft_id !==
+      draftId
   ) {
     return false;
   }
@@ -1611,18 +2198,18 @@ async function verifyPayment(
   return true;
 }
 
-
-/* ==========================================
-   TOMBOL CETAK
-========================================== */
+/* =========================================================
+   CETAK
+========================================================= */
 
 printBtn.addEventListener(
   "click",
   async () => {
 
     if (!hasDraft()) {
+
       showStatus(
-        "Buat atau tempelkan draft surat terlebih dahulu.",
+        "Buat atau masukkan draft surat terlebih dahulu.",
         "error"
       );
 
@@ -1633,19 +2220,19 @@ printBtn.addEventListener(
 
     saveState();
 
-    /*
-      Bila pernah bayar:
-      verifikasi dulu ke server.
-    */
+    if (
+      paidOrderId
+    ) {
 
-    if (paidOrderId) {
       try {
+
         const paid =
           await verifyPayment(
             paidOrderId
           );
 
         if (paid) {
+
           openModal(
             printModal
           );
@@ -1654,14 +2241,13 @@ printBtn.addEventListener(
         }
 
       } catch (error) {
-        console.error(error);
+
+        console.warn(
+          "Verifikasi pembayaran:",
+          error
+        );
       }
     }
-
-    /*
-      Belum bayar:
-      tampilkan popup Rp3.000.
-    */
 
     openModal(
       paymentModal
@@ -1669,32 +2255,33 @@ printBtn.addEventListener(
   }
 );
 
-
-/* ==========================================
-   MODAL PEMBAYARAN
-========================================== */
+/* =========================================================
+   PAYMENT MODAL
+========================================================= */
 
 $("closePaymentInfoModal")
-  .addEventListener(
+  ?.addEventListener(
     "click",
-    () =>
+    () => {
+
       closeModal(
         paymentModal
-      )
+      );
+    }
   );
-
 
 $("cancelPaymentBtn")
-  .addEventListener(
+  ?.addEventListener(
     "click",
-    () =>
+    () => {
+
       closeModal(
         paymentModal
-      )
+      );
+    }
   );
 
-
-paymentModal.addEventListener(
+paymentModal?.addEventListener(
   "click",
   event => {
 
@@ -1702,6 +2289,7 @@ paymentModal.addEventListener(
       event.target ===
       paymentModal
     ) {
+
       closeModal(
         paymentModal
       );
@@ -1709,10 +2297,9 @@ paymentModal.addEventListener(
   }
 );
 
-
-/* ==========================================
-   BUAT TRANSAKSI
-========================================== */
+/* =========================================================
+   CREATE PAYMENT
+========================================================= */
 
 continuePaymentBtn.addEventListener(
   "click",
@@ -1721,8 +2308,9 @@ continuePaymentBtn.addEventListener(
     if (busy) return;
 
     if (!hasDraft()) {
+
       showStatus(
-        "Draft surat belum tersedia.",
+        "Draft belum tersedia.",
         "error"
       );
 
@@ -1741,8 +2329,7 @@ continuePaymentBtn.addEventListener(
         await fetch(
           "/api/create-payment",
           {
-            method:
-              "POST",
+            method: "POST",
 
             headers: {
               "Content-Type":
@@ -1751,11 +2338,13 @@ continuePaymentBtn.addEventListener(
 
             body:
               JSON.stringify({
+
                 surat_text:
                   getText(),
 
                 draft_id:
                   draftId
+
               })
           }
         );
@@ -1764,6 +2353,7 @@ continuePaymentBtn.addEventListener(
         await response.json();
 
       if (!response.ok) {
+
         throw new Error(
           data.error ||
           "Gagal membuat pembayaran."
@@ -1774,6 +2364,7 @@ continuePaymentBtn.addEventListener(
         !data.redirect_url ||
         !data.order_id
       ) {
+
         throw new Error(
           "Data pembayaran tidak lengkap."
         );
@@ -1807,10 +2398,9 @@ continuePaymentBtn.addEventListener(
   }
 );
 
-
-/* ==========================================
-   KEMBALI DARI MIDTRANS
-========================================== */
+/* =========================================================
+   RETURN MIDTRANS
+========================================================= */
 
 async function checkPaymentReturn() {
 
@@ -1820,7 +2410,9 @@ async function checkPaymentReturn() {
     );
 
   const orderId =
-    params.get("order_id") ||
+    params.get(
+      "order_id"
+    ) ||
     currentOrderId;
 
   if (!orderId) {
@@ -1828,20 +2420,17 @@ async function checkPaymentReturn() {
   }
 
   try {
+
     const data =
       await getPaymentData(
         orderId
       );
 
-    /*
-      Bila backend menyimpan text/draft,
-      kita bisa pulihkan jika localStorage hilang.
-    */
-
     if (
       !hasDraft() &&
       data.surat_text
     ) {
+
       output.textContent =
         data.surat_text;
     }
@@ -1850,6 +2439,7 @@ async function checkPaymentReturn() {
       !draftId &&
       data.draft_id
     ) {
+
       draftId =
         data.draft_id;
     }
@@ -1864,19 +2454,15 @@ async function checkPaymentReturn() {
 
     if (paid) {
 
-      /*
-        Cocokkan transaksi dengan draft.
-      */
-
       if (
         data.draft_id &&
         draftId &&
         data.draft_id !==
-        draftId
+          draftId
       ) {
 
         showStatus(
-          "Pembayaran ditemukan, tetapi transaksi tersebut berasal dari draft lain.",
+          "Transaksi berasal dari draft yang berbeda.",
           "error"
         );
 
@@ -1896,20 +2482,15 @@ async function checkPaymentReturn() {
       );
 
       showStatus(
-        "Pembayaran berhasil diverifikasi. " +
-        "Word dan PDF sekarang dapat digunakan untuk draft ini.",
+        "Pembayaran berhasil diverifikasi. Word dan PDF sudah dapat digunakan.",
         "success"
       );
-
-      /*
-        Bersihkan query Midtrans
-        agar refresh tidak terus dianggap return.
-      */
 
       if (
         window.history &&
         window.history.replaceState
       ) {
+
         window.history.replaceState(
           {},
           document.title,
@@ -1921,14 +2502,16 @@ async function checkPaymentReturn() {
     }
 
     if (
-      params.has("order_id") ||
+      params.has(
+        "order_id"
+      ) ||
       params.has(
         "transaction_status"
       )
     ) {
+
       showStatus(
-        "Pembayaran belum terkonfirmasi. " +
-        "Jika baru saja membayar, tunggu sebentar lalu klik Cetak kembali.",
+        "Pembayaran belum terkonfirmasi. Tunggu beberapa saat lalu klik Cetak kembali.",
         "info"
       );
     }
@@ -1945,22 +2528,22 @@ async function checkPaymentReturn() {
   }
 }
 
-
-/* ==========================================
-   MODAL FORMAT
-========================================== */
+/* =========================================================
+   PRINT MODAL
+========================================================= */
 
 $("closePrintModal")
-  .addEventListener(
+  ?.addEventListener(
     "click",
-    () =>
+    () => {
+
       closeModal(
         printModal
-      )
+      );
+    }
   );
 
-
-printModal.addEventListener(
+printModal?.addEventListener(
   "click",
   event => {
 
@@ -1968,6 +2551,7 @@ printModal.addEventListener(
       event.target ===
       printModal
     ) {
+
       closeModal(
         printModal
       );
@@ -1975,10 +2559,9 @@ printModal.addEventListener(
   }
 );
 
-
-/* ==========================================
-   PDF / PRINT
-========================================== */
+/* =========================================================
+   PDF
+========================================================= */
 
 pdfBtn.addEventListener(
   "click",
@@ -1992,6 +2575,7 @@ pdfBtn.addEventListener(
         );
 
       if (!paid) {
+
         throw new Error(
           "Pembayaran untuk draft ini belum terverifikasi."
         );
@@ -2002,6 +2586,7 @@ pdfBtn.addEventListener(
       );
 
       selectedId = null;
+
       renderLayers();
 
       window.print();
@@ -2018,10 +2603,9 @@ pdfBtn.addEventListener(
   }
 );
 
-
-/* ==========================================
+/* =========================================================
    WORD
-========================================== */
+========================================================= */
 
 wordBtn.addEventListener(
   "click",
@@ -2035,96 +2619,93 @@ wordBtn.addEventListener(
         );
 
       if (!paid) {
+
         throw new Error(
           "Pembayaran untuk draft ini belum terverifikasi."
         );
       }
 
-      /*
-        Word HTML-compatible .doc
-
-        Catatan:
-        posisi layer absolut belum tentu
-        100% identik pada semua versi MS Word.
-      */
-
       const layerHtml =
         layers
-          .map(layer => {
+          .map(
+            layer => {
 
-            const leftMm =
-              layer.x /
-              A4_WIDTH *
-              210;
+              const left =
+                layer.x /
+                A4_WIDTH *
+                210;
 
-            const topMm =
-              layer.y /
-              A4_HEIGHT *
-              297;
+              const top =
+                layer.y /
+                A4_HEIGHT *
+                297;
 
-            const widthMm =
-              layer.width /
-              A4_WIDTH *
-              210;
-
-            const heightMm =
-              (
+              const width =
                 layer.width /
-                layer.ratio
-              ) /
-              A4_HEIGHT *
-              297;
+                A4_WIDTH *
+                210;
 
-            return `
-              <div
-                style="
-                  position:absolute;
-                  left:${leftMm}mm;
-                  top:${topMm}mm;
-                  width:${widthMm}mm;
-                  height:${heightMm}mm;
-                  z-index:${layer.z};
-                "
-              >
-                <img
-                  src="${layer.src}"
+              const height =
+                (
+                  layer.width /
+                  layer.ratio
+                ) /
+                A4_HEIGHT *
+                297;
+
+              return `
+                <div
                   style="
-                    width:100%;
-                    height:100%;
-                    object-fit:contain;
+                    position:absolute;
+                    left:${left}mm;
+                    top:${top}mm;
+                    width:${width}mm;
+                    height:${height}mm;
+                    z-index:${layer.z};
                   "
                 >
-              </div>
-            `;
-          })
+                  <img
+                    src="${layer.src}"
+                    style="
+                      width:100%;
+                      height:100%;
+                      object-fit:contain;
+                    "
+                  >
+                </div>
+              `;
+            }
+          )
           .join("");
-
 
       const paragraphs =
         getText()
           .split(/\n{2,}/)
-          .map(part => {
+          .map(
+            part => {
 
-            return `
-              <p
-                style="
-                  margin:0 0 12pt 0;
-                  text-align:justify;
-                  line-height:1.5;
-                "
-              >
-                ${
-                  escapeHtml(part)
-                    .replace(
-                      /\n/g,
-                      "<br>"
+              return `
+                <p
+                  style="
+                    margin:0 0 12pt 0;
+                    line-height:1.5;
+                    text-align:justify;
+                  "
+                >
+                  ${
+                    escapeHtml(
+                      part
                     )
-                }
-              </p>
-            `;
-          })
+                      .replace(
+                        /\n/g,
+                        "<br>"
+                      )
+                  }
+                </p>
+              `;
+            }
+          )
           .join("");
-
 
       const html = `
         <!DOCTYPE html>
@@ -2149,22 +2730,14 @@ wordBtn.addEventListener(
                 Helvetica,
                 sans-serif;
 
-              font-size:
-                11pt;
-
-              line-height:
-                1.5;
+              font-size: 11pt;
+              line-height: 1.5;
             }
 
             .page {
-              position:
-                relative;
-
-              width:
-                166mm;
-
-              min-height:
-                257mm;
+              position: relative;
+              width: 166mm;
+              min-height: 257mm;
             }
 
           </style>
@@ -2186,7 +2759,6 @@ wordBtn.addEventListener(
         </html>
       `;
 
-
       const blob =
         new Blob(
           [
@@ -2199,12 +2771,10 @@ wordBtn.addEventListener(
           }
         );
 
-
       const url =
         URL.createObjectURL(
           blob
         );
-
 
       const link =
         document.createElement(
@@ -2222,22 +2792,23 @@ wordBtn.addEventListener(
       );
 
       link.click();
+
       link.remove();
 
-
       setTimeout(
-        () =>
+        () => {
+
           URL.revokeObjectURL(
             url
-          ),
+          );
+
+        },
         1000
       );
-
 
       closeModal(
         printModal
       );
-
 
       showStatus(
         "Dokumen Word telah disiapkan.",
@@ -2256,30 +2827,55 @@ wordBtn.addEventListener(
   }
 );
 
-
-/* ==========================================
+/* =========================================================
    RESPONSIVE
-========================================== */
+========================================================= */
+
+let resizeTimer = null;
 
 window.addEventListener(
   "resize",
   () => {
-    renderLayers();
+
+    clearTimeout(
+      resizeTimer
+    );
+
+    resizeTimer =
+      setTimeout(
+        () => {
+
+          renderLayers();
+
+        },
+        100
+      );
   }
 );
 
-
-/* ==========================================
-   ESC KEY
-========================================== */
+/* =========================================================
+   ESCAPE
+========================================================= */
 
 document.addEventListener(
   "keydown",
   event => {
 
     if (
-      event.key !== "Escape"
+      event.key !==
+      "Escape"
     ) {
+      return;
+    }
+
+    if (
+      selectedId
+    ) {
+
+      selectedId = null;
+
+      renderLayers();
+
       return;
     }
 
@@ -2290,44 +2886,44 @@ document.addEventListener(
     closeModal(
       printModal
     );
-
-    selectedId = null;
-    renderLayers();
   }
 );
 
-
-/* ==========================================
-   SIMPAN FORM OTOMATIS
-========================================== */
+/* =========================================================
+   FORM AUTO SAVE
+========================================================= */
 
 [
   "jenis",
   "nama",
   "penerima",
   "detail"
-].forEach(id => {
+].forEach(
+  id => {
 
-  const element = $(id);
+    const element =
+      $(id);
 
-  if (!element) return;
+    if (!element) return;
 
-  element.addEventListener(
-    "input",
-    saveState
-  );
+    element.addEventListener(
+      "input",
+      saveState
+    );
 
-  element.addEventListener(
-    "change",
-    saveState
-  );
-});
+    element.addEventListener(
+      "change",
+      saveState
+    );
+  }
+);
 
-
-/* ==========================================
+/* =========================================================
    INIT
-========================================== */
+========================================================= */
 
 restoreState();
+
+renderLayers();
 
 checkPaymentReturn();
