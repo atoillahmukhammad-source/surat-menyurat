@@ -14,10 +14,6 @@ export default async function handler(req, res) {
       });
     }
 
-    /* =========================================
-       ENVIRONMENT VARIABLES
-    ========================================= */
-
     const supabaseUrl =
       process.env.SUPABASE_URL;
 
@@ -27,41 +23,36 @@ export default async function handler(req, res) {
     const midtransServerKey =
       process.env.MIDTRANS_SERVER_KEY;
 
-    if (!supabaseUrl || !supabaseKey) {
+    if (
+      !supabaseUrl ||
+      !supabaseKey ||
+      !midtransServerKey
+    ) {
       return res.status(500).json({
-        error: "Konfigurasi Supabase belum lengkap."
+        error: "Konfigurasi server belum lengkap."
       });
     }
-
-    if (!midtransServerKey) {
-      return res.status(500).json({
-        error: "MIDTRANS_SERVER_KEY belum tersedia."
-      });
-    }
-
-    /* =========================================
-       1. AMBIL DATA DRAFT DARI SUPABASE
-    ========================================= */
 
     const supabaseResponse = await fetch(
-      `${supabaseUrl}/rest/v1/payments?order_id=eq.${encodeURIComponent(order_id)}&select=order_id,surat_text,payment_status`,
+      `${supabaseUrl}/rest/v1/payments?order_id=eq.${encodeURIComponent(order_id)}&select=order_id,draft_id,surat_text,payment_status`,
       {
         method: "GET",
         headers: {
-          apikey: supabaseKey,
-          Authorization: `Bearer ${supabaseKey}`,
-          Accept: "application/json"
+          "apikey": supabaseKey,
+          "Authorization":
+            `Bearer ${supabaseKey}`,
+          "Accept": "application/json"
         }
       }
     );
 
-    const paymentRows =
+    const rows =
       await supabaseResponse.json();
 
     if (!supabaseResponse.ok) {
       console.error(
         "Supabase GET error:",
-        paymentRows
+        rows
       );
 
       return res.status(500).json({
@@ -70,43 +61,50 @@ export default async function handler(req, res) {
     }
 
     if (
-      !Array.isArray(paymentRows) ||
-      paymentRows.length === 0
+      !Array.isArray(rows) ||
+      rows.length === 0
     ) {
       return res.status(404).json({
-        error: "Draft atau transaksi tidak ditemukan."
+        error: "Transaksi tidak ditemukan."
       });
     }
 
     const payment =
-      paymentRows[0];
+      rows[0];
 
-    /* =========================================
-       2. CEK STATUS LANGSUNG KE MIDTRANS
-    ========================================= */
+    if (!payment.draft_id) {
+      return res.status(409).json({
+        error:
+          "Transaksi lama belum terhubung dengan draft_id.",
+        order_id:
+          payment.order_id,
+        draft_id:
+          null,
+        payment_status:
+          payment.payment_status || "pending"
+      });
+    }
 
     const auth =
       Buffer
         .from(`${midtransServerKey}:`)
         .toString("base64");
 
-    /*
-      Karena saat ini Anda menggunakan Sandbox.
-      Saat production nanti endpoint ini diganti menjadi:
-      https://api.midtrans.com/v2/...
-    */
-
-    const midtransResponse = await fetch(
-      `https://api.sandbox.midtrans.com/v2/${encodeURIComponent(order_id)}/status`,
-      {
-        method: "GET",
-        headers: {
-          Authorization: `Basic ${auth}`,
-          Accept: "application/json",
-          "Content-Type": "application/json"
+    const midtransResponse =
+      await fetch(
+        `https://api.sandbox.midtrans.com/v2/${encodeURIComponent(order_id)}/status`,
+        {
+          method: "GET",
+          headers: {
+            Authorization:
+              `Basic ${auth}`,
+            Accept:
+              "application/json",
+            "Content-Type":
+              "application/json"
+          }
         }
-      }
-    );
+      );
 
     const midtransData =
       await midtransResponse.json();
@@ -117,27 +115,17 @@ export default async function handler(req, res) {
         midtransData
       );
 
-      /*
-        Jika Midtrans sementara gagal dibaca,
-        jangan langsung merusak transaksi.
-
-        Kita masih kembalikan status terakhir
-        yang tersimpan di Supabase.
-      */
-
       return res.status(200).json({
-        order_id: payment.order_id,
-        surat_text: payment.surat_text,
+        order_id:
+          payment.order_id,
+        draft_id:
+          payment.draft_id,
+        surat_text:
+          payment.surat_text,
         payment_status:
-          payment.payment_status || "pending",
-
-        midtrans_check: "failed"
+          payment.payment_status || "pending"
       });
     }
-
-    /* =========================================
-       3. BACA STATUS MIDTRANS
-    ========================================= */
 
     const transactionStatus =
       midtransData.transaction_status;
@@ -145,70 +133,43 @@ export default async function handler(req, res) {
     const fraudStatus =
       midtransData.fraud_status;
 
-    let paymentStatus = "pending";
-
-    /*
-      Settlement:
-      pembayaran selesai.
-    */
+    let paymentStatus =
+      "pending";
 
     if (
-      transactionStatus === "settlement"
+      transactionStatus ===
+      "settlement"
     ) {
-      paymentStatus = "settlement";
+      paymentStatus =
+        "settlement";
     }
 
-    /*
-      Capture:
-      biasanya kartu kredit.
-
-      Hanya dianggap sukses jika fraud_status
-      accept atau tidak tersedia.
-    */
-
     else if (
-      transactionStatus === "capture" &&
+      transactionStatus ===
+      "capture" &&
       (
         !fraudStatus ||
         fraudStatus === "accept"
       )
     ) {
-      paymentStatus = "capture";
+      paymentStatus =
+        "capture";
     }
-
-    /*
-      Pending:
-      pembayaran belum selesai.
-    */
 
     else if (
-      transactionStatus === "pending"
+      transactionStatus ===
+      "pending"
     ) {
-      paymentStatus = "pending";
+      paymentStatus =
+        "pending";
     }
-
-    /*
-      Berbagai kondisi gagal.
-    */
 
     else if (
       [
         "deny",
         "cancel",
         "expire",
-        "failure"
-      ].includes(transactionStatus)
-    ) {
-      paymentStatus =
-        transactionStatus;
-    }
-
-    /*
-      Refund tetap dicatat.
-    */
-
-    else if (
-      [
+        "failure",
         "refund",
         "partial_refund"
       ].includes(transactionStatus)
@@ -216,10 +177,6 @@ export default async function handler(req, res) {
       paymentStatus =
         transactionStatus;
     }
-
-    /* =========================================
-       4. UPDATE STATUS DI SUPABASE
-    ========================================= */
 
     if (
       payment.payment_status !==
@@ -230,21 +187,16 @@ export default async function handler(req, res) {
           `${supabaseUrl}/rest/v1/payments?order_id=eq.${encodeURIComponent(order_id)}`,
           {
             method: "PATCH",
-
             headers: {
-              apikey:
+              "apikey":
                 supabaseKey,
-
-              Authorization:
+              "Authorization":
                 `Bearer ${supabaseKey}`,
-
               "Content-Type":
                 "application/json",
-
-              Prefer:
+              "Prefer":
                 "return=minimal"
             },
-
             body:
               JSON.stringify({
                 payment_status:
@@ -254,29 +206,22 @@ export default async function handler(req, res) {
         );
 
       if (!updateResponse.ok) {
-        const updateError =
+        const errorText =
           await updateResponse.text();
 
         console.error(
-          "Supabase UPDATE error:",
-          updateError
+          "Supabase update error:",
+          errorText
         );
-
-        /*
-          Tidak perlu menggagalkan respons,
-          karena Midtrans sendiri sudah memberi
-          status pembayaran yang valid.
-        */
       }
     }
-
-    /* =========================================
-       5. KIRIM STATUS TERBARU KE FRONTEND
-    ========================================= */
 
     return res.status(200).json({
       order_id:
         payment.order_id,
+
+      draft_id:
+        payment.draft_id,
 
       surat_text:
         payment.surat_text,
@@ -289,14 +234,10 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error(
-      "GET PAYMENT ERROR:",
-      error
-    );
+    console.error(error);
 
     return res.status(500).json({
-      error:
-        "Terjadi kesalahan saat memeriksa pembayaran."
+      error: "Terjadi kesalahan server."
     });
   }
 }
