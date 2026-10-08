@@ -235,10 +235,6 @@ function restore(){
 
 function newDraft(source){
 
-  /*
-    Draft baru berarti transaksi lama
-    tidak boleh ikut terbawa.
-  */
   sessionStorage.removeItem(
     'pending_payment'
   );
@@ -1998,13 +1994,15 @@ $('continuePaymentBtn')
    Retry otomatis 5x, jeda 2 detik
 ========================================================= */
 
-
 async function checkReturn(){
 
   const p=
     new URLSearchParams(
       location.search
     );
+
+  const urlOrderId=
+    p.get('order_id');
 
   let pending=null;
 
@@ -2022,46 +2020,33 @@ async function checkReturn(){
     pending=null;
   }
 
+  if(
+    pending?.draftId &&
+    draftId &&
+    pending.draftId!==draftId
+  ){
+
+    sessionStorage.removeItem(
+      'pending_payment'
+    );
+
+    pending=null;
+  }
+
   const id=
-    p.get('order_id')||
-    pending?.orderId||
+    urlOrderId ||
+    (
+      pending?.draftId===draftId
+        ?pending?.orderId
+        :null
+    ) ||
     currentOrderId;
 
   if(!id)return;
 
-  /*
-    Jika ada transaksi terbaru yang memang
-    sedang dibayar, pakai draft milik transaksi itu.
-  */
-
-  if(
-    pending?.orderId===id &&
-    pending?.draftId
-  ){
-
-    draftId=
-      pending.draftId;
-
-    currentOrderId=
-      pending.orderId;
-
-    if(
-      pending.suratText
-    ){
-
-      output.textContent=
-        pending.suratText;
-    }
-  }
-
   try{
 
     let d=null;
-
-    /*
-      Cek status maksimal 5 kali,
-      jeda 2 detik.
-    */
 
     for(
       let i=0;
@@ -2098,10 +2083,34 @@ async function checkReturn(){
       }
     }
 
-    /*
-      Jika browser tidak memiliki draft,
-      pulihkan teks dari server.
-    */
+    if(
+      d?.draft_id &&
+      draftId &&
+      d.draft_id!==draftId
+    ){
+
+      if(
+        pending?.orderId===id
+      ){
+
+        sessionStorage.removeItem(
+          'pending_payment'
+        );
+      }
+
+      currentOrderId=null;
+
+      paidOrderId=null;
+
+      save();
+
+      status(
+        'Transaksi sebelumnya diabaikan karena bukan milik draft yang sedang dibuka.',
+        'info'
+      );
+
+      return;
+    }
 
     if(
       !hasDraft() &&
@@ -2139,11 +2148,6 @@ async function checkReturn(){
       currentOrderId=
         id;
 
-      /*
-        Pembayaran selesai,
-        data pending tidak diperlukan lagi.
-      */
-
       sessionStorage.removeItem(
         'pending_payment'
       );
@@ -2160,11 +2164,7 @@ async function checkReturn(){
         'success'
       );
 
-      if(
-        p.has(
-          'order_id'
-        )
-      ){
+      if(urlOrderId){
 
         history.replaceState(
           {},
@@ -2174,8 +2174,11 @@ async function checkReturn(){
       }
 
     }else if(
-      p.has('order_id') ||
-      pending?.orderId===id
+      urlOrderId ||
+      (
+        pending &&
+        pending.orderId===id
+      )
     ){
 
       status(
@@ -2905,10 +2908,26 @@ document.addEventListener(
   }
 );
 
-
 /* =========================================================
    START
 ========================================================= */
 
 restore();
 checkReturn();
+
+/*
+  Jika browser mengembalikan halaman dari cache
+  setelah kembali dari Midtrans,
+  muat ulang draft terbaru dari localStorage.
+*/
+window.addEventListener(
+  'pageshow',
+  e=>{
+
+    if(e.persisted){
+
+      restore();
+      checkReturn();
+    }
+  }
+);
