@@ -1,121 +1,44 @@
 "use strict";
+/* Surat Menyurat AI — editor dan ekspor PDF + DOCX asli */
+const $=id=>document.getElementById(id);
+const preview=$('suratPreview'), output=$('output'), statusBox=$('status');
+const KEY='surat_editor_v6', OLD_KEYS=['surat_editor_v5','surat_editor_v4'];
+const PAGE_W=794,PAGE_H=1123, CONTENT_X=83,CONTENT_Y=76, CONTENT_W=628;
+let layers=[],selectedId=null,draftId=null,draftSource=null,currentOrderId=null,paidOrderId=null;
+let active=null,restoring=false,working=false,signatureHasInk=false,editTimer=null;
+const uuid=()=>globalThis.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const scale=()=>preview.clientWidth/PAGE_W||1;
 
-/* =========================================================
-   SURAT MENYURAT AI
-   Editor + Payment + PDF Preview + DOCX asli
-========================================================= */
-
-const $ = id => document.getElementById(id);
-
-const preview = $("suratPreview");
-const output = $("output");
-const statusBox = $("status");
-
-const KEY = "surat_editor_v6";
-const OLD_KEYS = [
-  "surat_editor_v5",
-  "surat_editor_v4"
-];
-
-const PAGE_W = 794;
-const PAGE_H = 1123;
-
-const CONTENT_X = 83;
-const CONTENT_Y = 76;
-const CONTENT_W = 628;
-
-let layers = [];
-let selectedId = null;
-
-let draftId = null;
-let draftSource = null;
-
-let currentOrderId = null;
-let paidOrderId = null;
-
-let active = null;
-
-let restoring = false;
-let working = false;
-
-let signatureHasInk = false;
-let editTimer = null;
-
-
-/* =========================================================
-   UTILITIES
-========================================================= */
-
-const uuid = () =>
-  globalThis.crypto?.randomUUID?.() ||
-  `${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2)}`;
-
-const clamp = (v, a, b) =>
-  Math.max(a, Math.min(b, v));
-
-const scale = () =>
-  preview.clientWidth / PAGE_W || 1;
-
-
-function status(message, type = "info") {
-
-  statusBox.className =
-    `mt-4 p-3 rounded-lg text-sm ${
-      type === "error"
-        ? "bg-red-100 text-red-700"
-        : type === "success"
-        ? "bg-green-100 text-green-700"
-        : "bg-blue-100 text-blue-700"
-    }`;
-
-  statusBox.textContent = message;
+function status(message,type='info'){
+  statusBox.className=`mt-4 p-3 rounded-lg text-sm ${
+    type==='error'
+      ?'bg-red-100 text-red-700'
+      :type==='success'
+      ?'bg-green-100 text-green-700'
+      :'bg-blue-100 text-blue-700'
+  }`;
+  statusBox.textContent=message;
 }
 
-
-function modal(el, show) {
-
-  el.classList.toggle(
-    "hidden",
-    !show
-  );
-
-  el.classList.toggle(
-    "flex",
-    show
-  );
+function modal(el,show){
+  el.classList.toggle('hidden',!show);
+  el.classList.toggle('flex',show);
 }
 
-
-function text() {
+function text(){
   return output.innerText.trim();
 }
 
-
-function hasDraft() {
-
-  const s = text();
-
-  return (
-    !!s &&
-    !s.startsWith(
-      "Hasil surat akan muncul di sini..."
-    )
-  );
+function hasDraft(){
+  const s=text();
+  return !!s&&!s.startsWith('Hasil surat akan muncul di sini...');
 }
 
+function save(){
+  if(restoring)return;
 
-/* =========================================================
-   LOCAL STORAGE
-========================================================= */
-
-function save() {
-
-  if (restoring) return;
-
-  try {
-
+  try{
     localStorage.setItem(
       KEY,
       JSON.stringify({
@@ -123,626 +46,341 @@ function save() {
         draftSource,
         currentOrderId,
         paidOrderId,
-
-        text: text(),
-
+        text:text(),
         layers,
-
-        form: Object.fromEntries(
-          [
-            "jenis",
-            "nama",
-            "penerima",
-            "detail"
-          ].map(id => [
-            id,
-            $(id).value
-          ])
+        form:Object.fromEntries(
+          ['jenis','nama','penerima','detail'].map(
+            id=>[id,$(id).value]
+          )
         )
       })
     );
-
-  } catch (e) {
-
-    console.error(
-      "SAVE ERROR:",
-      e
-    );
-
+  }catch(e){
     status(
-      "Penyimpanan browser penuh. Perkecil ukuran gambar yang diunggah.",
-      "error"
+      'Penyimpanan browser penuh. Perkecil ukuran gambar yang diunggah.',
+      'error'
     );
   }
 }
 
+function restore(){
+  let raw=localStorage.getItem(KEY);
 
-function restore() {
-
-  let raw =
-    localStorage.getItem(KEY);
-
-  if (!raw) {
-
-    for (const k of OLD_KEYS) {
-
-      raw =
-        localStorage.getItem(k);
-
-      if (raw) break;
+  if(!raw){
+    for(const k of OLD_KEYS){
+      raw=localStorage.getItem(k);
+      if(raw)break;
     }
   }
 
-  if (!raw) return;
+  if(!raw)return;
 
-  try {
+  try{
+    restoring=true;
 
-    restoring = true;
+    const s=JSON.parse(raw);
 
-    const s =
-      JSON.parse(raw);
+    draftId=s.draftId||null;
+    draftSource=s.draftSource||null;
+    currentOrderId=s.currentOrderId||null;
+    paidOrderId=s.paidOrderId||null;
 
-    draftId =
-      s.draftId || null;
-
-    draftSource =
-      s.draftSource || null;
-
-    currentOrderId =
-      s.currentOrderId || null;
-
-    paidOrderId =
-      s.paidOrderId || null;
-
-
-    if (
-      s.text &&
-      !s.text.startsWith(
-        "Hasil surat akan muncul di sini..."
-      )
-    ) {
-      output.textContent =
-        s.text;
+    if(
+      s.text&&
+      !s.text.startsWith('Hasil surat akan muncul di sini...')
+    ){
+      output.textContent=s.text;
     }
 
+    layers=(Array.isArray(s.layers)?s.layers:[])
+      .filter(l=>l&&l.src)
+      .map(l=>({
+        ...l,
+        ratio:Number(l.ratio)||1,
+        width:Number(l.width)||150,
+        z:Number(l.z)||1,
+        background:!!l.background
+      }));
 
-    layers =
-      (
-        Array.isArray(s.layers)
-          ? s.layers
-          : []
-      )
-        .filter(
-          l =>
-            l &&
-            l.src
-        )
-        .map(l => ({
-          ...l,
-
-          ratio:
-            Number(l.ratio) || 1,
-
-          width:
-            Number(l.width) || 150,
-
-          z:
-            Number(l.z) || 1,
-
-          background:
-            !!l.background
-        }));
-
-
-    for (
-      const [id, value]
-      of Object.entries(
-        s.form || {}
-      )
-    ) {
-
-      if ($(id)) {
-        $(id).value =
-          value;
-      }
+    for(const [id,value] of Object.entries(s.form||{})){
+      if($(id))$(id).value=value;
     }
 
-  } catch (e) {
-
-    console.error(
-      "RESTORE ERROR:",
-      e
-    );
-
-  } finally {
-
-    restoring = false;
+  }catch(e){
+    console.error('Restore',e);
+  }finally{
+    restoring=false;
   }
 
   render();
   save();
 }
 
-
-/* =========================================================
-   DRAFT SESSION
-========================================================= */
-
-function newDraft(source) {
-
-  draftId = uuid();
-
-  draftSource =
-    source;
-
-  currentOrderId =
-    null;
-
-  paidOrderId =
-    null;
-
+function newDraft(source){
+  draftId=uuid();
+  draftSource=source;
+  currentOrderId=null;
+  paidOrderId=null;
   save();
 }
 
-
-function ensureDraft() {
-
-  if (
-    hasDraft() &&
-    !draftId
-  ) {
-    newDraft("manual");
+function ensureDraft(){
+  if(hasDraft()&&!draftId){
+    newDraft('manual');
   }
 }
 
+async function generate(){
+  const jenis=$('jenis').value;
+  const nama=$('nama').value.trim();
+  const penerima=$('penerima').value.trim();
+  const detail=$('detail').value.trim();
 
-/* =========================================================
-   GENERATE AI
-========================================================= */
-
-async function generate() {
-
-  const jenis =
-    $("jenis").value;
-
-  const nama =
-    $("nama").value.trim();
-
-  const penerima =
-    $("penerima").value.trim();
-
-  const detail =
-    $("detail").value.trim();
-
-
-  if (
-    !nama ||
-    !penerima ||
-    !detail
-  ) {
-
+  if(!nama||!penerima||!detail){
     return status(
-      "Lengkapi nama, penerima, dan rincian surat.",
-      "error"
+      'Lengkapi nama, penerima, dan rincian surat.',
+      'error'
     );
   }
 
+  const btn=$('generateBtn');
 
-  const btn =
-    $("generateBtn");
+  btn.disabled=true;
+  $('regenerateBtn').disabled=true;
+  btn.textContent='⏳ Menyusun surat...';
 
-  btn.disabled = true;
+  try{
+    const r=await fetch(
+      '/api/generate',
+      {
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json'
+        },
+        body:JSON.stringify({
+          jenis,
+          nama,
+          penerima,
+          detail
+        })
+      }
+    );
 
-  $("regenerateBtn").disabled =
-    true;
+    const d=await r.json();
 
-  btn.textContent =
-    "⏳ Menyusun surat...";
-
-
-  try {
-
-    const r =
-      await fetch(
-        "/api/generate",
-        {
-          method: "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json"
-          },
-
-          body:
-            JSON.stringify({
-              jenis,
-              nama,
-              penerima,
-              detail
-            })
-        }
-      );
-
-
-    const d =
-      await r.json();
-
-
-    if (
-      !r.ok ||
-      !d.result
-    ) {
-
+    if(!r.ok||!d.result){
       throw Error(
-        d.error ||
-        "Gagal membuat surat"
+        d.error||'Gagal membuat surat'
       );
     }
 
+    newDraft('ai');
 
-    /*
-      SETIAP GENERATE =
-      DRAFT BARU
-    */
+    output.textContent=d.result.trim();
 
-    newDraft("ai");
-
-
-    output.textContent =
-      d.result.trim();
-
-
-    /*
-      Draft baru tidak mewarisi
-      layer draft sebelumnya.
-    */
-
-    layers = [];
-
-    selectedId =
-      null;
-
+    layers=[];
+    selectedId=null;
 
     render();
     save();
 
-
     status(
-      "Draft baru berhasil dibuat.",
-      "success"
+      'Draft baru berhasil dibuat.',
+      'success'
     );
 
-  } catch (e) {
+  }catch(e){
+    status(e.message,'error');
 
-    console.error(e);
-
-    status(
-      e.message,
-      "error"
-    );
-
-  } finally {
-
-    btn.disabled = false;
-
-    $("regenerateBtn").disabled =
-      false;
-
-    btn.textContent =
-      "✨ Buat Draft Surat";
+  }finally{
+    btn.disabled=false;
+    $('regenerateBtn').disabled=false;
+    btn.textContent='✨ Buat Draft Surat';
   }
 }
 
-
-$("generateBtn")
-  .addEventListener(
-    "click",
-    generate
-  );
-
-
-$("regenerateBtn")
-  .addEventListener(
-    "click",
-    generate
-  );
-
-
-/* =========================================================
-   TEXT EDITOR
-========================================================= */
+$('generateBtn').addEventListener('click',generate);
+$('regenerateBtn').addEventListener('click',generate);
 
 output.addEventListener(
-  "input",
-  () => {
+  'input',
+  ()=>{
+    clearTimeout(editTimer);
 
-    clearTimeout(
-      editTimer
+    editTimer=setTimeout(
+      ()=>{
+        ensureDraft();
+        save();
+      },
+      250
     );
-
-    editTimer =
-      setTimeout(
-        () => {
-
-          ensureDraft();
-          save();
-
-        },
-        250
-      );
   }
 );
 
-
 output.addEventListener(
-  "paste",
-  e => {
-
+  'paste',
+  e=>{
     e.preventDefault();
 
-    const plain =
-      e.clipboardData
-        ?.getData(
-          "text/plain"
-        ) || "";
+    const plain=
+      e.clipboardData?.getData('text/plain')||'';
 
     document.execCommand(
-      "insertText",
+      'insertText',
       false,
       plain
     );
   }
 );
 
+$('editBtn').addEventListener(
+  'click',
+  ()=>{
+    const edit=
+      output.contentEditable!=='true';
 
-$("editBtn")
-  .addEventListener(
-    "click",
-    () => {
+    output.contentEditable=String(edit);
 
-      const edit =
-        output.contentEditable !==
-        "true";
+    $('editBtn').textContent=
+      edit
+        ?'💾 Selesai Edit'
+        :'✏️ Edit';
 
-      output.contentEditable =
-        String(edit);
-
-      $("editBtn").textContent =
-        edit
-          ? "💾 Selesai Edit"
-          : "✏️ Edit";
-
-      if (edit) {
-
-        output.focus();
-
-      } else {
-
-        save();
-      }
+    if(edit){
+      output.focus();
+    }else{
+      save();
     }
-  );
+  }
+);
 
-
-$("copyBtn")
-  .addEventListener(
-    "click",
-    async () => {
-
-      if (!hasDraft()) {
-
-        return status(
-          "Belum ada draft.",
-          "error"
-        );
-      }
-
-      try {
-
-        await navigator.clipboard
-          .writeText(
-            text()
-          );
-
-        status(
-          "Teks berhasil disalin.",
-          "success"
-        );
-
-      } catch {
-
-        status(
-          "Tidak dapat menyalin teks.",
-          "error"
-        );
-      }
+$('copyBtn').addEventListener(
+  'click',
+  async()=>{
+    if(!hasDraft()){
+      return status(
+        'Belum ada draft.',
+        'error'
+      );
     }
-  );
 
+    try{
+      await navigator.clipboard.writeText(
+        text()
+      );
 
-for (
-  const id of [
-    "jenis",
-    "nama",
-    "penerima",
-    "detail"
-  ]
-) {
+      status(
+        'Teks berhasil disalin.',
+        'success'
+      );
 
-  $(id).addEventListener(
-    "input",
-    save
-  );
+    }catch{
+      status(
+        'Tidak dapat menyalin teks.',
+        'error'
+      );
+    }
+  }
+);
+
+for(const id of ['jenis','nama','penerima','detail']){
+  $(id).addEventListener('input',save);
 }
 
 
-/* =========================================================
-   CANVAS TANDA TANGAN
-========================================================= */
+/* Canvas TTD */
+const pad=$('signaturePad');
+const ctx=pad.getContext('2d');
 
-const pad =
-  $("signaturePad");
+ctx.strokeStyle='#111827';
+ctx.fillStyle='#111827';
+ctx.lineWidth=3;
+ctx.lineCap='round';
+ctx.lineJoin='round';
 
-const ctx =
-  pad.getContext("2d");
+let pen=false;
+let last=null;
 
+const point=e=>{
+  const r=pad.getBoundingClientRect();
 
-ctx.strokeStyle =
-  "#111827";
-
-ctx.fillStyle =
-  "#111827";
-
-ctx.lineWidth =
-  3;
-
-ctx.lineCap =
-  "round";
-
-ctx.lineJoin =
-  "round";
-
-
-let pen = false;
-let last = null;
-
-
-const point = e => {
-
-  const r =
-    pad.getBoundingClientRect();
-
-  return {
-
-    x:
-      (
-        e.clientX -
-        r.left
-      ) *
-      pad.width /
-      r.width,
-
-    y:
-      (
-        e.clientY -
-        r.top
-      ) *
-      pad.height /
-      r.height
+  return{
+    x:(e.clientX-r.left)*pad.width/r.width,
+    y:(e.clientY-r.top)*pad.height/r.height
   };
 };
 
-
 pad.addEventListener(
-  "pointerdown",
-  e => {
-
+  'pointerdown',
+  e=>{
     e.preventDefault();
 
-    pen = true;
+    pen=true;
+    signatureHasInk=true;
+    last=point(e);
 
-    signatureHasInk =
-      true;
-
-    last =
-      point(e);
-
-
-    try {
-      pad.setPointerCapture(
-        e.pointerId
-      );
-    } catch {}
-
+    pad.setPointerCapture(e.pointerId);
 
     ctx.beginPath();
-
     ctx.arc(
       last.x,
       last.y,
       1.5,
       0,
-      Math.PI * 2
+      Math.PI*2
     );
-
     ctx.fill();
   }
 );
 
-
 pad.addEventListener(
-  "pointermove",
-  e => {
-
-    if (!pen) return;
+  'pointermove',
+  e=>{
+    if(!pen)return;
 
     e.preventDefault();
 
-    const p =
-      point(e);
+    const p=point(e);
 
     ctx.beginPath();
-
-    ctx.moveTo(
-      last.x,
-      last.y
-    );
-
-    ctx.lineTo(
-      p.x,
-      p.y
-    );
-
+    ctx.moveTo(last.x,last.y);
+    ctx.lineTo(p.x,p.y);
     ctx.stroke();
 
-    last = p;
+    last=p;
   }
 );
 
-
-for (
-  const evt of [
-    "pointerup",
-    "pointercancel"
-  ]
-) {
-
+for(const evt of ['pointerup','pointercancel']){
   pad.addEventListener(
     evt,
-    () => {
-
-      pen = false;
-      last = null;
+    ()=>{
+      pen=false;
+      last=null;
     }
   );
 }
 
+$('clearSignatureBtn').addEventListener(
+  'click',
+  ()=>{
+    ctx.clearRect(
+      0,
+      0,
+      pad.width,
+      pad.height
+    );
 
-$("clearSignatureBtn")
-  .addEventListener(
-    "click",
-    () => {
+    signatureHasInk=false;
 
-      ctx.clearRect(
-        0,
-        0,
-        pad.width,
-        pad.height
-      );
+    status(
+      'Papan tanda tangan dibersihkan.'
+    );
+  }
+);
 
-      signatureHasInk =
-        false;
-
-      status(
-        "Papan tanda tangan dibersihkan."
-      );
-    }
-  );
-
-
-function cropPad() {
-
-  const img =
+function cropPad(){
+  const img=
     ctx.getImageData(
       0,
       0,
@@ -750,1264 +388,730 @@ function cropPad() {
       pad.height
     );
 
-  const d =
-    img.data;
+  const d=img.data;
 
+  let x0=pad.width;
+  let y0=pad.height;
+  let x1=-1;
+  let y1=-1;
 
-  let x0 =
-    pad.width;
-
-  let y0 =
-    pad.height;
-
-  let x1 = -1;
-  let y1 = -1;
-
-
-  for (
-    let y = 0;
-    y < pad.height;
-    y++
-  ) {
-
-    for (
-      let x = 0;
-      x < pad.width;
-      x++
-    ) {
-
-      if (
-        d[
-          (
-            y *
-            pad.width +
-            x
-          ) *
-          4 +
-          3
-        ]
-      ) {
-
-        x0 =
-          Math.min(
-            x0,
-            x
-          );
-
-        y0 =
-          Math.min(
-            y0,
-            y
-          );
-
-        x1 =
-          Math.max(
-            x1,
-            x
-          );
-
-        y1 =
-          Math.max(
-            y1,
-            y
-          );
+  for(let y=0;y<pad.height;y++){
+    for(let x=0;x<pad.width;x++){
+      if(
+        d[(y*pad.width+x)*4+3]
+      ){
+        x0=Math.min(x0,x);
+        y0=Math.min(y0,y);
+        x1=Math.max(x1,x);
+        y1=Math.max(y1,y);
       }
     }
   }
 
+  if(x1<0)return null;
 
-  if (x1 < 0) {
-    return null;
-  }
+  const p=10;
+  const w=x1-x0+1+2*p;
+  const h=y1-y0+1+2*p;
 
+  const c=document.createElement('canvas');
 
-  const p = 10;
+  c.width=w;
+  c.height=h;
 
-  const w =
-    x1 -
-    x0 +
-    1 +
-    2 * p;
+  c.getContext('2d').drawImage(
+    pad,
+    x0,
+    y0,
+    w-2*p,
+    h-2*p,
+    p,
+    p,
+    w-2*p,
+    h-2*p
+  );
 
-  const h =
-    y1 -
-    y0 +
-    1 +
-    2 * p;
-
-
-  const c =
-    document.createElement(
-      "canvas"
-    );
-
-  c.width = w;
-  c.height = h;
-
-
-  c
-    .getContext("2d")
-    .drawImage(
-      pad,
-
-      x0,
-      y0,
-
-      w - 2 * p,
-      h - 2 * p,
-
-      p,
-      p,
-
-      w - 2 * p,
-      h - 2 * p
-    );
-
-
-  return {
-
-    src:
-      c.toDataURL(
-        "image/png"
-      ),
-
-    ratio:
-      w / h
+  return{
+    src:c.toDataURL('image/png'),
+    ratio:w/h
   };
 }
 
+$('addSignatureBtn').addEventListener(
+  'click',
+  ()=>{
+    if(!hasDraft()){
+      return status(
+        'Buat atau tempelkan draft terlebih dahulu.',
+        'error'
+      );
+    }
 
-$("addSignatureBtn")
-  .addEventListener(
-    "click",
-    () => {
+    if(!signatureHasInk){
+      return status(
+        'Gambar tanda tangan terlebih dahulu.',
+        'error'
+      );
+    }
 
-      if (!hasDraft()) {
+    const s=cropPad();
 
-        return status(
-          "Buat atau tempelkan draft terlebih dahulu.",
-          "error"
+    if(s){
+      addLayer({
+        ...s,
+        type:'signature',
+        name:'Tanda tangan',
+        x:430,
+        y:820,
+        width:155
+      });
+    }
+  }
+);
+
+
+/* Gambar upload */
+const readFile=f=>
+  new Promise(
+    (resolve,reject)=>{
+      const fr=new FileReader();
+
+      fr.onload=()=>resolve(fr.result);
+      fr.onerror=reject;
+
+      fr.readAsDataURL(f);
+    }
+  );
+
+const dimensions=src=>
+  new Promise(
+    (resolve,reject)=>{
+      const im=new Image();
+
+      im.onload=()=>
+        resolve({
+          width:im.naturalWidth,
+          height:im.naturalHeight
+        });
+
+      im.onerror=reject;
+      im.src=src;
+    }
+  );
+
+$('imageUpload').addEventListener(
+  'change',
+  async e=>{
+    if(!hasDraft()){
+      e.target.value='';
+
+      return status(
+        'Buat atau tempelkan draft terlebih dahulu.',
+        'error'
+      );
+    }
+
+    for(const file of e.target.files){
+
+      if(
+        ![
+          'image/png',
+          'image/jpeg',
+          'image/webp'
+        ].includes(file.type)||
+        file.size>5*1024*1024
+      ){
+        status(
+          'Gunakan PNG/JPG/WebP maksimal 5 MB.',
+          'error'
         );
+
+        continue;
       }
 
-
-      if (!signatureHasInk) {
-
-        return status(
-          "Gambar tanda tangan terlebih dahulu.",
-          "error"
-        );
-      }
-
-
-      const s =
-        cropPad();
-
-
-      if (s) {
+      try{
+        const src=await readFile(file);
+        const d=await dimensions(src);
 
         addLayer({
-          ...s,
-
-          type:
-            "signature",
-
-          name:
-            "Tanda tangan",
-
-          x: 430,
-          y: 820,
-
-          width: 155
+          src,
+          ratio:d.width/d.height,
+          name:file.name,
+          type:'image',
+          x:70,
+          y:70,
+          width:200
         });
-      }
-    }
-  );
 
-
-/* =========================================================
-   IMAGE UPLOAD
-========================================================= */
-
-const readFile =
-  f =>
-    new Promise(
-      (
-        resolve,
-        reject
-      ) => {
-
-        const fr =
-          new FileReader();
-
-        fr.onload =
-          () =>
-            resolve(
-              fr.result
-            );
-
-        fr.onerror =
-          reject;
-
-        fr.readAsDataURL(
-          f
+      }catch(err){
+        status(
+          'Gambar gagal dibaca.',
+          'error'
         );
       }
-    );
-
-
-const dimensions =
-  src =>
-    new Promise(
-      (
-        resolve,
-        reject
-      ) => {
-
-        const im =
-          new Image();
-
-        im.onload =
-          () =>
-            resolve({
-              width:
-                im.naturalWidth,
-
-              height:
-                im.naturalHeight
-            });
-
-        im.onerror =
-          reject;
-
-        im.src =
-          src;
-      }
-    );
-
-
-$("imageUpload")
-  .addEventListener(
-    "change",
-    async e => {
-
-      if (!hasDraft()) {
-
-        e.target.value =
-          "";
-
-        return status(
-          "Buat atau tempelkan draft terlebih dahulu.",
-          "error"
-        );
-      }
-
-
-      for (
-        const file
-        of e.target.files
-      ) {
-
-        if (
-          ![
-            "image/png",
-            "image/jpeg",
-            "image/webp"
-          ].includes(
-            file.type
-          ) ||
-          file.size >
-            5 *
-            1024 *
-            1024
-        ) {
-
-          status(
-            "Gunakan PNG/JPG/WebP maksimal 5 MB.",
-            "error"
-          );
-
-          continue;
-        }
-
-
-        try {
-
-          const src =
-            await readFile(
-              file
-            );
-
-          const d =
-            await dimensions(
-              src
-            );
-
-
-          addLayer({
-
-            src,
-
-            ratio:
-              d.width /
-              d.height,
-
-            name:
-              file.name,
-
-            type:
-              "image",
-
-            x: 70,
-            y: 70,
-
-            width: 200
-          });
-
-        } catch (err) {
-
-          console.error(err);
-
-          status(
-            "Gambar gagal dibaca.",
-            "error"
-          );
-        }
-      }
-
-
-      e.target.value =
-        "";
     }
-  );
+
+    e.target.value='';
+  }
+);
 
 
-/* =========================================================
-   MULTI LAYER
-========================================================= */
-
-function normalize() {
-
+/* Multi-layer */
+function normalize(){
   layers.sort(
-    (a, b) =>
-      (a.z || 0) -
-      (b.z || 0)
+    (a,b)=>
+      (a.z||0)-(b.z||0)
   );
 
   layers.forEach(
-    (l, i) =>
-      l.z = i + 1
+    (l,i)=>
+      l.z=i+1
   );
 }
 
-
-function addLayer(info) {
-
+function addLayer(info){
   ensureDraft();
-
   normalize();
 
-
-  const l = {
-
-    id:
-      uuid(),
-
-    name:
-      info.name ||
-      "Gambar",
-
-    type:
-      info.type ||
-      "image",
-
-    src:
-      info.src,
-
-    x:
-      info.x || 0,
-
-    y:
-      info.y || 0,
-
-    width:
-      info.width || 150,
-
-    ratio:
-      info.ratio || 1,
-
-    z:
-      layers.length + 1,
-
-    background:
-      false
+  const l={
+    id:uuid(),
+    name:info.name||'Gambar',
+    type:info.type||'image',
+    src:info.src,
+    x:info.x||0,
+    y:info.y||0,
+    width:info.width||150,
+    ratio:info.ratio||1,
+    z:layers.length+1,
+    background:false
   };
-
 
   layers.push(l);
 
-  selectedId =
-    l.id;
-
+  selectedId=l.id;
 
   render();
   save();
 
-
   status(
-    "Layer ditambahkan. Klik untuk memilih, geser untuk memindahkan.",
-    "success"
+    'Layer ditambahkan. Klik untuk memilih, geser untuk memindahkan.',
+    'success'
   );
 }
 
-
-function layer(id) {
-
+function layer(id){
   return layers.find(
-    l =>
-      l.id === id
+    l=>l.id===id
   );
 }
 
+function applyPosition(el,l){
+  const s=scale();
 
-function applyPosition(
-  el,
-  l
-) {
+  el.style.left=
+    `${l.x*s}px`;
 
-  const s =
-    scale();
+  el.style.top=
+    `${l.y*s}px`;
 
+  el.style.width=
+    `${l.width*s}px`;
 
-  el.style.left =
-    `${l.x * s}px`;
-
-  el.style.top =
-    `${l.y * s}px`;
-
-  el.style.width =
-    `${l.width * s}px`;
-
-  el.style.height =
-    `${
-      (
-        l.width /
-        l.ratio
-      ) *
-      s
-    }px`;
+  el.style.height=
+    `${l.width/l.ratio*s}px`;
 }
 
-
-function render() {
-
+function render(){
   preview
-    .querySelectorAll(
-      ".editor-layer"
-    )
+    .querySelectorAll('.editor-layer')
     .forEach(
-      e =>
-        e.remove()
+      e=>e.remove()
     );
-
 
   normalize();
 
+  for(const l of layers){
 
-  for (
-    const l
-    of layers
-  ) {
+    const el=
+      document.createElement('div');
 
-    const el =
-      document.createElement(
-        "div"
-      );
-
-
-    el.className =
-      "editor-layer" +
+    el.className=
+      'editor-layer'+
       (
-        selectedId === l.id
-          ? " layer-selected"
-          : ""
+        selectedId===l.id
+          ?' layer-selected'
+          :''
       );
 
+    el.dataset.layerId=l.id;
 
-    el.dataset.layerId =
-      l.id;
-
-
-    /*
-      Background berada di bawah
-      layer normal.
-    */
-
-    el.style.zIndex =
+    el.style.zIndex=
       l.background
-        ? String(l.z)
-        : String(20 + l.z);
+        ?String(l.z)
+        :String(20+l.z);
 
+    applyPosition(el,l);
 
-    applyPosition(
-      el,
-      l
-    );
+    const im=
+      document.createElement('img');
 
-
-    const im =
-      document.createElement(
-        "img"
-      );
-
-    im.src =
-      l.src;
-
-    im.alt =
-      l.name;
-
-    im.draggable =
-      false;
-
+    im.src=l.src;
+    im.alt=l.name;
+    im.draggable=false;
 
     el.append(im);
 
+    const handle=
+      document.createElement('div');
 
-    const handle =
-      document.createElement(
-        "div"
-      );
-
-    handle.className =
-      "resize-handle";
-
-    handle.title =
-      "Ubah ukuran";
-
+    handle.className='resize-handle';
+    handle.title='Ubah ukuran';
 
     el.append(handle);
 
+    const del=
+      document.createElement('button');
 
-    const del =
-      document.createElement(
-        "button"
-      );
-
-    del.type =
-      "button";
-
-    del.className =
-      "delete-layer";
-
-    del.textContent =
-      "×";
-
-    del.title =
-      "Hapus";
-
+    del.type='button';
+    del.className='delete-layer';
+    del.textContent='×';
+    del.title='Hapus';
 
     el.append(del);
 
-
     preview.append(el);
 
-
-    /* =========================
-       DRAG
-    ========================= */
-
     el.addEventListener(
-      "pointerdown",
-      e => {
-
-        if (
-          e.target === handle ||
-          e.target === del
-        ) {
-          return;
-        }
-
+      'pointerdown',
+      e=>{
+        if(
+          e.target===handle||
+          e.target===del
+        )return;
 
         e.preventDefault();
         e.stopPropagation();
 
-
-        selectedId =
-          l.id;
-
+        selectedId=l.id;
 
         preview
-          .querySelectorAll(
-            ".editor-layer"
-          )
+          .querySelectorAll('.editor-layer')
           .forEach(
-            n =>
+            n=>
               n.classList.toggle(
-                "layer-selected",
-                n.dataset.layerId ===
-                  l.id
+                'layer-selected',
+                n.dataset.layerId===l.id
               )
           );
 
-
-        active = {
-
-          mode:
-            "drag",
-
-          id:
-            l.id,
-
-          pointerId:
-            e.pointerId,
-
-          startX:
-            e.clientX,
-
-          startY:
-            e.clientY,
-
-          x:
-            l.x,
-
-          y:
-            l.y,
-
-          s:
-            scale()
+        active={
+          mode:'drag',
+          id:l.id,
+          pointerId:e.pointerId,
+          startX:e.clientX,
+          startY:e.clientY,
+          x:l.x,
+          y:l.y,
+          s:scale()
         };
 
-
-        try {
-
+        try{
           el.setPointerCapture(
             e.pointerId
           );
-
-        } catch {}
+        }catch{}
       }
     );
 
-
-    /* =========================
-       RESIZE
-    ========================= */
-
     handle.addEventListener(
-      "pointerdown",
-      e => {
-
+      'pointerdown',
+      e=>{
         e.preventDefault();
         e.stopPropagation();
 
+        selectedId=l.id;
 
-        selectedId =
-          l.id;
-
-
-        active = {
-
-          mode:
-            "resize",
-
-          id:
-            l.id,
-
-          pointerId:
-            e.pointerId,
-
-          startX:
-            e.clientX,
-
-          startWidth:
-            l.width,
-
-          s:
-            scale()
+        active={
+          mode:'resize',
+          id:l.id,
+          pointerId:e.pointerId,
+          startX:e.clientX,
+          startWidth:l.width,
+          s:scale()
         };
 
-
-        try {
-
+        try{
           handle.setPointerCapture(
             e.pointerId
           );
-
-        } catch {}
+        }catch{}
       }
     );
 
-
-    /* =========================
-       DELETE
-    ========================= */
-
     del.addEventListener(
-      "pointerdown",
-      e =>
-        e.stopPropagation()
+      'pointerdown',
+      e=>e.stopPropagation()
     );
 
-
     del.addEventListener(
-      "click",
-      e => {
-
+      'click',
+      e=>{
         e.preventDefault();
         e.stopPropagation();
 
-        removeLayer(
-          l.id
-        );
+        removeLayer(l.id);
       }
     );
   }
 }
 
+function movePointer(e){
+  if(
+    !active||
+    e.pointerId!==active.pointerId
+  )return;
 
-function movePointer(e) {
+  const l=layer(active.id);
 
-  if (
-    !active ||
-    e.pointerId !==
-      active.pointerId
-  ) {
-    return;
-  }
-
-
-  const l =
-    layer(
-      active.id
-    );
-
-
-  if (!l) return;
-
+  if(!l)return;
 
   e.preventDefault();
 
+  if(active.mode==='drag'){
 
-  if (
-    active.mode ===
-    "drag"
-  ) {
-
-    l.x =
-      clamp(
-        active.x +
-          (
-            e.clientX -
-            active.startX
-          ) /
-          active.s,
-
+    l.x=clamp(
+      active.x+
+      (e.clientX-active.startX)/
+      active.s,
+      0,
+      Math.max(
         0,
+        PAGE_W-l.width
+      )
+    );
 
-        Math.max(
-          0,
-          PAGE_W -
-            l.width
-        )
-      );
-
-
-    l.y =
-      clamp(
-        active.y +
-          (
-            e.clientY -
-            active.startY
-          ) /
-          active.s,
-
+    l.y=clamp(
+      active.y+
+      (e.clientY-active.startY)/
+      active.s,
+      0,
+      Math.max(
         0,
+        PAGE_H-l.width/l.ratio
+      )
+    );
 
-        Math.max(
-          0,
+  }else{
 
-          PAGE_H -
-            l.width /
-              l.ratio
-        )
-      );
-
-  } else {
-
-    const max =
+    const max=
       Math.min(
-
-        PAGE_W -
-          l.x,
-
-        (
-          PAGE_H -
-          l.y
-        ) *
-        l.ratio
+        PAGE_W-l.x,
+        (PAGE_H-l.y)*l.ratio
       );
 
-
-    l.width =
-      clamp(
-        active.startWidth +
-          (
-            e.clientX -
-            active.startX
-          ) /
-          active.s,
-
-        Math.min(
-          35,
-          max
-        ),
-
-        max
-      );
+    l.width=clamp(
+      active.startWidth+
+      (e.clientX-active.startX)/
+      active.s,
+      Math.min(35,max),
+      max
+    );
   }
 
+  const el=[
+    ...preview.querySelectorAll('.editor-layer')
+  ].find(
+    n=>n.dataset.layerId===l.id
+  );
 
-  const el =
-    [
-      ...preview
-        .querySelectorAll(
-          ".editor-layer"
-        )
-    ]
-      .find(
-        n =>
-          n.dataset.layerId ===
-          l.id
-      );
-
-
-  if (el) {
-
-    applyPosition(
-      el,
-      l
-    );
+  if(el){
+    applyPosition(el,l);
   }
 }
 
-
 document.addEventListener(
-  "pointermove",
+  'pointermove',
   movePointer,
   {
-    passive: false
+    passive:false
   }
 );
 
+function endPointer(e){
+  if(
+    !active||
+    active.pointerId!==e.pointerId
+  )return;
 
-function endPointer(e) {
-
-  if (
-    !active ||
-    active.pointerId !==
-      e.pointerId
-  ) {
-    return;
-  }
-
-  active = null;
+  active=null;
 
   render();
   save();
 }
 
-
 document.addEventListener(
-  "pointerup",
+  'pointerup',
   endPointer
 );
 
-
 document.addEventListener(
-  "pointercancel",
+  'pointercancel',
   endPointer
 );
 
+function removeLayer(id){
+  layers=layers.filter(
+    l=>l.id!==id
+  );
 
-function removeLayer(id) {
-
-  layers =
-    layers.filter(
-      l =>
-        l.id !== id
-    );
-
-
-  if (
-    selectedId === id
-  ) {
-    selectedId =
-      null;
+  if(selectedId===id){
+    selectedId=null;
   }
 
-
-  active = null;
-
+  active=null;
 
   render();
   save();
-
 
   status(
-    "Layer dihapus.",
-    "success"
+    'Layer dihapus.',
+    'success'
   );
 }
 
+$('deleteSelectedLayerBtn').addEventListener(
+  'click',
+  ()=>
+    selectedId
+      ?removeLayer(selectedId)
+      :status(
+        'Pilih layer terlebih dahulu.',
+        'error'
+      )
+);
 
-$("deleteSelectedLayerBtn")
-  .addEventListener(
-    "click",
-    () => {
+function reorder(delta){
+  const l=layer(selectedId);
 
-      if (selectedId) {
-
-        removeLayer(
-          selectedId
-        );
-
-      } else {
-
-        status(
-          "Pilih layer terlebih dahulu.",
-          "error"
-        );
-      }
-    }
-  );
-
-
-function reorder(delta) {
-
-  const l =
-    layer(
-      selectedId
-    );
-
-
-  if (!l) {
-
+  if(!l){
     return status(
-      "Pilih layer terlebih dahulu.",
-      "error"
+      'Pilih layer terlebih dahulu.',
+      'error'
     );
   }
-
 
   normalize();
 
-
-  const i =
+  const i=
     layers.findIndex(
-      x =>
-        x.id === l.id
+      x=>x.id===l.id
     );
 
-
-  const j =
+  const j=
     clamp(
-      i + delta,
+      i+delta,
       0,
-      layers.length - 1
+      layers.length-1
     );
-
 
   [
     layers[i],
     layers[j]
-  ] =
-  [
+  ]=[
     layers[j],
     layers[i]
   ];
 
-
   layers.forEach(
-    (x, k) =>
-      x.z = k + 1
+    (x,k)=>
+      x.z=k+1
   );
-
 
   render();
   save();
 }
 
+$('bringLayerForwardBtn').addEventListener(
+  'click',
+  ()=>reorder(1)
+);
 
-$("bringLayerForwardBtn")
-  .addEventListener(
-    "click",
-    () =>
-      reorder(1)
-  );
+$('sendLayerBackwardBtn').addEventListener(
+  'click',
+  ()=>reorder(-1)
+);
 
+$('toggleBackgroundBtn').addEventListener(
+  'click',
+  ()=>{
+    const l=layer(selectedId);
 
-$("sendLayerBackwardBtn")
-  .addEventListener(
-    "click",
-    () =>
-      reorder(-1)
-  );
-
-
-$("toggleBackgroundBtn")
-  .addEventListener(
-    "click",
-    () => {
-
-      const l =
-        layer(
-          selectedId
-        );
-
-
-      if (!l) {
-
-        return status(
-          "Pilih gambar terlebih dahulu.",
-          "error"
-        );
-      }
-
-
-      l.background =
-        !l.background;
-
-
-      render();
-      save();
-
-
-      status(
-        l.background
-          ? "Layer menjadi background di belakang teks."
-          : "Layer kembali ke depan teks.",
-        "success"
+    if(!l){
+      return status(
+        'Pilih gambar terlebih dahulu.',
+        'error'
       );
     }
-  );
 
+    l.background=!l.background;
+
+    render();
+    save();
+
+    status(
+      l.background
+        ?'Layer menjadi background di belakang teks.'
+        :'Layer kembali ke depan teks.',
+      'success'
+    );
+  }
+);
 
 preview.addEventListener(
-  "pointerdown",
-  e => {
-
-    if (
-      !e.target.closest(
-        ".editor-layer"
-      )
-    ) {
-
-      selectedId =
-        null;
-
+  'pointerdown',
+  e=>{
+    if(
+      !e.target.closest('.editor-layer')
+    ){
+      selectedId=null;
       render();
     }
   }
 );
-
 
 window.addEventListener(
-  "resize",
-  () => {
-
-    if (!active) {
+  'resize',
+  ()=>{
+    if(!active){
       render();
     }
   }
 );
 
 
-/* =========================================================
-   PAYMENT
-========================================================= */
+/* Pembayaran */
+async function paymentData(orderId){
+  const r=await fetch(
+    `/api/get-payment?order_id=${encodeURIComponent(orderId)}`,
+    {
+      cache:'no-store'
+    }
+  );
 
-async function paymentData(
-  orderId
-) {
+  const d=await r.json();
 
-  const r =
-    await fetch(
-      `/api/get-payment?order_id=${encodeURIComponent(orderId)}`,
-      {
-        cache:
-          "no-store"
-      }
-    );
-
-
-  const d =
-    await r.json();
-
-
-  if (!r.ok) {
-
+  if(!r.ok){
     throw Error(
-      d.error ||
-      "Gagal memeriksa pembayaran"
+      d.error||
+      'Gagal memeriksa pembayaran'
     );
   }
-
 
   return d;
 }
 
-
-async function verified(
-  orderId
-) {
-
-  if (
-    !orderId ||
-    !draftId
-  ) {
+async function verified(orderId){
+  if(!orderId||!draftId){
     return false;
   }
 
+  const d=
+    await paymentData(orderId);
 
-  const d =
-    await paymentData(
-      orderId
-    );
-
-
-  if (
+  if(
     ![
-      "settlement",
-      "capture"
+      'settlement',
+      'capture'
     ].includes(
       d.payment_status
     )
-  ) {
+  ){
     return false;
   }
 
-
-  if (!d.draft_id) {
-
+  if(!d.draft_id){
     throw Error(
-      "Backend belum mengembalikan draft_id. Hubungkan pembayaran dengan draft_id sebelum ekspor."
+      'Backend belum mengembalikan draft_id. Hubungkan pembayaran dengan draft_id sebelum ekspor.'
     );
   }
 
-
-  return (
-    d.draft_id ===
-    draftId
-  );
+  return d.draft_id===draftId;
 }
 
+$('printBtn').addEventListener(
+  'click',
+  async()=>{
+    if(!hasDraft()){
+      return status(
+        'Buat atau tempelkan draft terlebih dahulu.',
+        'error'
+      );
+    }
 
-$("printBtn")
-  .addEventListener(
-    "click",
-    async () => {
+    ensureDraft();
+    save();
 
-      if (!hasDraft()) {
-
-        return status(
-          "Buat atau tempelkan draft terlebih dahulu.",
-          "error"
-        );
-      }
-
-
-      ensureDraft();
-      save();
-
-
-      /*
-        Draft yang sudah pernah
-        dibayar dapat dicetak ulang.
-      */
-
-      if (paidOrderId) {
-
-        try {
-
-          if (
-            await verified(
-              paidOrderId
-            )
-          ) {
-
-            modal(
-              $("printModal"),
-              true
-            );
-
-            return;
-          }
-
-        } catch (e) {
-
-          status(
-            e.message,
-            "error"
+    if(paidOrderId){
+      try{
+        if(
+          await verified(
+            paidOrderId
+          )
+        ){
+          modal(
+            $('printModal'),
+            true
           );
 
           return;
         }
+
+      }catch(e){
+        status(
+          e.message,
+          'error'
+        );
+
+        return;
       }
-
-
-      modal(
-        $("paymentInfoModal"),
-        true
-      );
     }
-  );
 
+    modal(
+      $('paymentInfoModal'),
+      true
+    );
+  }
+);
 
-for (
-  const id of [
-    "closePaymentInfoModal",
-    "cancelPaymentBtn"
-  ]
-) {
-
+for(const id of [
+  'closePaymentInfoModal',
+  'cancelPaymentBtn'
+]){
   $(id).addEventListener(
-    "click",
-    () =>
-      modal(
-        $("paymentInfoModal"),
-        false
-      )
+    'click',
+    ()=>modal(
+      $('paymentInfoModal'),
+      false
+    )
   );
 }
 
+$('closePrintModal').addEventListener(
+  'click',
+  ()=>modal(
+    $('printModal'),
+    false
+  )
+);
 
-$("closePrintModal")
-  .addEventListener(
-    "click",
-    () =>
-      modal(
-        $("printModal"),
-        false
-      )
-  );
-
-
-for (
-  const id of [
-    "paymentInfoModal",
-    "printModal"
-  ]
-) {
-
+for(const id of [
+  'paymentInfoModal',
+  'printModal'
+]){
   $(id).addEventListener(
-    "click",
-    e => {
-
-      if (
-        e.target ===
-        $(id)
-      ) {
-
+    'click',
+    e=>{
+      if(e.target===$(id)){
         modal(
           $(id),
           false
@@ -2017,210 +1121,138 @@ for (
   );
 }
 
+$('continuePaymentBtn').addEventListener(
+  'click',
+  async()=>{
+    if(working)return;
 
-/* =========================================================
-   CREATE PAYMENT
-========================================================= */
+    ensureDraft();
 
-$("continuePaymentBtn")
-  .addEventListener(
-    "click",
-    async () => {
+    working=true;
 
-      if (working) return;
+    const btn=
+      $('continuePaymentBtn');
 
+    btn.disabled=true;
+    btn.textContent='⏳ Menyiapkan...';
 
-      ensureDraft();
-
-
-      working =
-        true;
-
-
-      const btn =
-        $("continuePaymentBtn");
-
-
-      btn.disabled =
-        true;
-
-      btn.textContent =
-        "⏳ Menyiapkan...";
-
-
-      try {
-
-        const r =
-          await fetch(
-            "/api/create-payment",
-            {
-              method:
-                "POST",
-
-              headers: {
-                "Content-Type":
-                  "application/json"
-              },
-
-              body:
-                JSON.stringify({
-                  surat_text:
-                    text(),
-
-                  draft_id:
-                    draftId
-                })
-            }
-          );
-
-
-        const d =
-          await r.json();
-
-
-        if (
-          !r.ok ||
-          !d.order_id ||
-          !d.redirect_url
-        ) {
-
-          throw Error(
-            d.error ||
-            "Gagal membuat transaksi"
-          );
+    try{
+      const r=await fetch(
+        '/api/create-payment',
+        {
+          method:'POST',
+          headers:{
+            'Content-Type':'application/json'
+          },
+          body:JSON.stringify({
+            surat_text:text(),
+            draft_id:draftId
+          })
         }
+      );
 
+      const d=await r.json();
 
-        currentOrderId =
-          d.order_id;
-
-
-        save();
-
-
-        location.assign(
-          d.redirect_url
+      if(
+        !r.ok||
+        !d.order_id||
+        !d.redirect_url
+      ){
+        throw Error(
+          d.error||
+          'Gagal membuat transaksi'
         );
-
-      } catch (e) {
-
-        console.error(e);
-
-
-        status(
-          e.message,
-          "error"
-        );
-
-
-        modal(
-          $("paymentInfoModal"),
-          false
-        );
-
-      } finally {
-
-        working =
-          false;
-
-        btn.disabled =
-          false;
-
-        btn.textContent =
-          "Lanjut Cetak";
       }
+
+      currentOrderId=
+        d.order_id;
+
+      save();
+
+      location.assign(
+        d.redirect_url
+      );
+
+    }catch(e){
+      status(
+        e.message,
+        'error'
+      );
+
+      modal(
+        $('paymentInfoModal'),
+        false
+      );
+
+    }finally{
+      working=false;
+
+      btn.disabled=false;
+      btn.textContent='Lanjut Cetak';
     }
-  );
+  }
+);
 
-
-/* =========================================================
-   RETURN FROM MIDTRANS
-========================================================= */
-
-async function checkReturn() {
-
-  const p =
+async function checkReturn(){
+  const p=
     new URLSearchParams(
       location.search
     );
 
-
-  const id =
-    p.get("order_id") ||
+  const id=
+    p.get('order_id')||
     currentOrderId;
 
+  if(!id)return;
 
-  if (!id) return;
+  try{
+    const d=
+      await paymentData(id);
 
-
-  try {
-
-    const d =
-      await paymentData(
-        id
-      );
-
-
-    if (
-      !hasDraft() &&
+    if(
+      !hasDraft()&&
       d.surat_text
-    ) {
-
-      output.textContent =
+    ){
+      output.textContent=
         d.surat_text;
     }
 
-
-    if (
-      !draftId &&
+    if(
+      !draftId&&
       d.draft_id
-    ) {
-
-      draftId =
+    ){
+      draftId=
         d.draft_id;
     }
 
-
-    if (
+    if(
       [
-        "settlement",
-        "capture"
+        'settlement',
+        'capture'
       ].includes(
         d.payment_status
-      ) &&
-      d.draft_id &&
-      d.draft_id ===
-        draftId
-    ) {
-
-      paidOrderId =
-        id;
-
-      currentOrderId =
-        id;
-
+      )&&
+      d.draft_id&&
+      d.draft_id===draftId
+    ){
+      paidOrderId=id;
+      currentOrderId=id;
 
       save();
 
-
       modal(
-        $("printModal"),
+        $('printModal'),
         true
       );
 
-
       status(
-        "Pembayaran berhasil diverifikasi.",
-        "success"
+        'Pembayaran berhasil diverifikasi.',
+        'success'
       );
 
-
-      if (
-        p.has(
-          "order_id"
-        )
-      ) {
-
+      if(
+        p.has('order_id')
+      ){
         history.replaceState(
           {},
           document.title,
@@ -2228,29 +1260,19 @@ async function checkReturn() {
         );
       }
 
-    } else if (
-      p.has(
-        "order_id"
-      )
-    ) {
-
+    }else if(
+      p.has('order_id')
+    ){
       status(
-        "Pembayaran belum terkonfirmasi atau tidak cocok dengan draft ini.",
-        "info"
+        'Pembayaran belum terkonfirmasi atau tidak cocok dengan draft ini.',
+        'info'
       );
     }
 
-  } catch (e) {
-
-    console.error(
-      "PAYMENT RETURN:",
-      e
-    );
-
-
+  }catch(e){
     status(
       `Pemeriksaan pembayaran: ${e.message}`,
-      "error"
+      'error'
     );
   }
 }
@@ -2258,394 +1280,240 @@ async function checkReturn() {
 
 /* =========================================================
    PDF EXPORT
-   PDF TIDAK LANGSUNG DOWNLOAD.
-   PDF DIBUKA DI TAB BARU.
+   Hanya bagian ini yang diubah:
+   tidak langsung download, tetapi buka PDF di tab baru
 ========================================================= */
 
-async function pdfExport(
-  pdfWindow
-) {
+async function pdfExport(){
 
-  if (
-    typeof html2canvas !==
-      "function" ||
+  if(
+    typeof html2canvas!=='function'||
     !window.jspdf?.jsPDF
-  ) {
-
+  ){
     throw Error(
-      "Library PDF belum dimuat. Periksa koneksi internet."
+      'Library PDF belum dimuat. Periksa koneksi internet.'
     );
   }
 
+  const old=selectedId;
 
-  const old =
-    selectedId;
-
-
-  selectedId =
-    null;
-
-
+  selectedId=null;
   render();
 
-
   preview.classList.add(
-    "exporting"
+    'exporting'
   );
 
+  try{
 
-  try {
+    await document.fonts.ready;
 
-    /*
-      Pastikan font selesai dimuat
-      sebelum dokumen difoto.
-    */
-
-    if (
-      document.fonts?.ready
-    ) {
-
-      await document.fonts.ready;
-    }
-
-
-    const canvas =
+    const canvas=
       await html2canvas(
         preview,
         {
+          backgroundColor:'#ffffff',
+          scale:2,
+          useCORS:true,
+          logging:false,
+          scrollX:0,
+          scrollY:0,
 
-          backgroundColor:
-            "#ffffff",
-
-          scale: 2,
-
-          useCORS:
-            true,
-
-          logging:
-            false,
-
-          scrollX: 0,
-          scrollY: 0,
-
-
-          onclone: doc => {
-
-            const clone =
+          onclone:doc=>{
+            const clone=
               doc.getElementById(
-                "suratPreview"
+                'suratPreview'
               );
 
             clone?.classList.add(
-              "exporting"
+              'exporting'
             );
           }
         }
       );
 
-
-    const pdf =
+    const pdf=
       new window.jspdf.jsPDF({
-
-        orientation:
-          "portrait",
-
-        unit:
-          "mm",
-
-        format:
-          "a4",
-
-        compress:
-          true
+        orientation:'portrait',
+        unit:'mm',
+        format:'a4',
+        compress:true
       });
 
+    const pagePx=
+      canvas.width*297/210;
 
-    /*
-      Tinggi halaman A4
-      dalam koordinat canvas.
-    */
+    let y=0;
+    let page=0;
 
-    const pagePx =
-      canvas.width *
-      297 /
-      210;
+    while(
+      y<canvas.height
+    ){
 
-
-    let y = 0;
-    let page = 0;
-
-
-    while (
-      y <
-      canvas.height
-    ) {
-
-      const h =
+      const h=
         Math.min(
           pagePx,
-          canvas.height - y
+          canvas.height-y
         );
 
-
-      const part =
+      const part=
         document.createElement(
-          "canvas"
+          'canvas'
         );
 
-
-      part.width =
+      part.width=
         canvas.width;
 
-
-      part.height =
+      part.height=
         Math.ceil(h);
 
-
-      const partCtx =
-        part.getContext(
-          "2d"
+      part
+        .getContext('2d')
+        .drawImage(
+          canvas,
+          0,
+          y,
+          canvas.width,
+          h,
+          0,
+          0,
+          canvas.width,
+          h
         );
 
-
-      partCtx.drawImage(
-
-        canvas,
-
-        0,
-        y,
-
-        canvas.width,
-        h,
-
-        0,
-        0,
-
-        canvas.width,
-        h
-      );
-
-
-      if (page > 0) {
+      if(page++){
         pdf.addPage();
       }
 
-
       pdf.addImage(
-
         part.toDataURL(
-          "image/png"
+          'image/png'
         ),
-
-        "PNG",
-
+        'PNG',
         0,
         0,
-
         210,
-
-        (
-          h /
-          canvas.width
-        ) *
-        210
+        h/canvas.width*210
       );
 
-
-      y += h;
-      page++;
+      y+=h;
     }
 
 
     /*
-      UBAH PDF MENJADI BLOB
+      SEBELUMNYA:
+      pdf.save('surat.pdf');
+
+      SEKARANG:
+      buka PDF di tab baru
     */
 
-    const blob =
-      pdf.output(
-        "blob"
-      );
+    const blob=
+      pdf.output('blob');
 
-
-    const url =
+    const url=
       URL.createObjectURL(
         blob
       );
 
+    const win=
+      window.open(
+        url,
+        '_blank'
+      );
 
-    /*
-      Gunakan tab yang sebelumnya
-      dibuka saat tombol PDF diklik.
+    if(!win){
+      URL.revokeObjectURL(
+        url
+      );
 
-      Ini lebih tahan terhadap
-      popup blocker browser.
-    */
-
-    if (
-      pdfWindow &&
-      !pdfWindow.closed
-    ) {
-
-      pdfWindow.location.href =
-        url;
-
-    } else {
-
-      const fallback =
-        window.open(
-          url,
-          "_blank"
-        );
-
-
-      if (!fallback) {
-
-        URL.revokeObjectURL(
-          url
-        );
-
-
-        throw Error(
-          "Popup PDF diblokir browser. Izinkan popup untuk situs ini."
-        );
-      }
+      throw Error(
+        'Popup PDF diblokir browser. Izinkan popup untuk situs ini.'
+      );
     }
 
-
-    /*
-      Blob tidak langsung dilepas
-      agar PDF viewer mempunyai waktu
-      untuk membaca file.
-    */
-
     setTimeout(
-      () => {
-
+      ()=>{
         URL.revokeObjectURL(
           url
         );
-
       },
       120000
     );
 
-  } finally {
+  }finally{
 
     preview.classList.remove(
-      "exporting"
+      'exporting'
     );
 
-
-    selectedId =
-      old;
-
+    selectedId=old;
 
     render();
   }
 }
 
 
-/* =========================================================
-   DOCX ASLI
-========================================================= */
-
-function paragraphRuns(s) {
-
+/* DOCX asli */
+function paragraphRuns(s){
   return s
-    .split("\n")
+    .split('\n')
     .map(
-      (part, i) => {
+      (part,i)=>{
+        const r=
+          new window.docx.TextRun({
+            text:part,
+            break:i?1:0
+          });
 
-        return new window.docx.TextRun({
-
-          text:
-            part,
-
-          break:
-            i
-              ? 1
-              : 0
-        });
+        return r;
       }
     );
 }
 
+async function docxExport(){
+  const D=window.docx;
 
-async function docxExport() {
-
-  const D =
-    window.docx;
-
-
-  if (
-    !D?.Document ||
-    !D?.ImageRun ||
+  if(
+    !D?.Document||
+    !D?.ImageRun||
     !D?.Packer
-  ) {
-
+  ){
     throw Error(
-      "Library Word belum dimuat. Periksa koneksi internet."
+      'Library Word belum dimuat. Periksa koneksi internet.'
     );
   }
 
+  const EMU=9525;
+  const TWIP=20;
 
-  /*
-    Word menggunakan EMU
-    untuk floating image.
-  */
+  const pageWidth=11906;
+  const pageHeight=16838;
 
-  const EMU =
-    9525;
-
-
-  const pageWidth =
-    11906;
-
-  const pageHeight =
-    16838;
-
-
-  const marginX =
+  const marginX=
     Math.round(
-      CONTENT_X /
-      PAGE_W *
+      CONTENT_X/PAGE_W*
       pageWidth
     );
 
-
-  const marginY =
+  const marginY=
     Math.round(
-      CONTENT_Y /
-      PAGE_H *
+      CONTENT_Y/PAGE_H*
       pageHeight
     );
 
-
-  /*
-    Teks tetap editable.
-  */
-
-  const paras =
+  const paras=
     text()
-      .split(
-        /\n\s*\n/
-      )
+      .split(/\n\s*\n/)
       .map(
-        s =>
+        s=>
           new D.Paragraph({
-
             children:
-              paragraphRuns(
-                s
-              ),
+              paragraphRuns(s),
 
-            spacing: {
-
-              after:
-                160,
-
-              line:
-                360
+            spacing:{
+              after:160,
+              line:360
             },
 
             alignment:
@@ -2654,27 +1522,18 @@ async function docxExport() {
           })
       );
 
+  const imgs=[];
 
-  /*
-    Gambar tetap elemen terpisah,
-    bukan satu gambar full page.
-  */
-
-  const imgs = [];
-
-
-  for (
+  for(
     const l
-    of [
-      ...layers
-    ].sort(
-      (a, b) =>
-        a.z -
-        b.z
-    )
-  ) {
+    of [...layers]
+      .sort(
+        (a,b)=>
+          a.z-b.z
+      )
+  ){
 
-    const width =
+    const width=
       Math.max(
         1,
         Math.round(
@@ -2682,299 +1541,186 @@ async function docxExport() {
         )
       );
 
-
-    const height =
+    const height=
       Math.max(
         1,
         Math.round(
-          l.width /
-          l.ratio
+          l.width/l.ratio
         )
       );
 
+    let data=l.src;
+    let type='png';
 
-    let data =
-      l.src;
-
-
-    let type =
-      "png";
-
-
-    if (
+    if(
       data.startsWith(
-        "data:image/jpeg"
+        'data:image/jpeg'
       )
-    ) {
+    ){
+      type='jpg';
 
-      type =
-        "jpg";
-
-    } else if (
+    }else if(
       data.startsWith(
-        "data:image/webp"
+        'data:image/webp'
       )
-    ) {
-
-      /*
-        DOCX lebih aman memakai
-        PNG daripada WebP.
-      */
-
-      const c =
+    ){
+      const c=
         document.createElement(
-          "canvas"
+          'canvas'
         );
 
-
-      const im =
+      const im=
         new Image();
 
-
-      im.src =
-        data;
-
+      im.src=data;
 
       await im.decode();
 
-
-      c.width =
+      c.width=
         im.naturalWidth;
 
-      c.height =
+      c.height=
         im.naturalHeight;
 
-
-      c
-        .getContext("2d")
+      c.getContext('2d')
         .drawImage(
           im,
           0,
           0
         );
 
-
-      data =
+      data=
         c.toDataURL(
-          "image/png"
+          'image/png'
         );
-
-
-      type =
-        "png";
     }
 
-
-    const bytes =
+    const bytes=
       Uint8Array.from(
-
         atob(
-          data.split(",")[1]
+          data.split(',')[1]
         ),
-
-        c =>
+        c=>
           c.charCodeAt(0)
       );
 
-
-    const run =
+    const run=
       new D.ImageRun({
-
-        data:
-          bytes,
-
+        data:bytes,
         type,
 
-        transformation: {
-
+        transformation:{
           width,
           height
         },
 
-
-        floating: {
-
-          horizontalPosition: {
-
+        floating:{
+          horizontalPosition:{
             relative:
-              D.HorizontalPositionRelativeFrom
-                .PAGE,
+              D.HorizontalPositionRelativeFrom.PAGE,
 
             offset:
               Math.round(
-                l.x *
-                EMU
+                l.x*EMU
               )
           },
 
-
-          verticalPosition: {
-
+          verticalPosition:{
             relative:
-              D.VerticalPositionRelativeFrom
-                .PAGE,
+              D.VerticalPositionRelativeFrom.PAGE,
 
             offset:
               Math.round(
-                l.y *
-                EMU
+                l.y*EMU
               )
           },
 
-
-          wrap: {
-
+          wrap:{
             type:
-              D.TextWrappingType
-                .NONE
+              D.TextWrappingType.NONE
           },
-
 
           behindDocument:
             !!l.background,
 
-          allowOverlap:
-            true,
-
-          layoutInCell:
-            false
+          allowOverlap:true,
+          layoutInCell:false
         }
       });
 
-
-    imgs.push(
-      run
-    );
+    imgs.push(run);
   }
 
-
-  const doc =
+  const doc=
     new D.Document({
-
-      sections: [
-
+      sections:[
         {
-
-          properties: {
-
-            page: {
-
-              size: {
-
-                width:
-                  pageWidth,
-
-                height:
-                  pageHeight
+          properties:{
+            page:{
+              size:{
+                width:pageWidth,
+                height:pageHeight
               },
 
-
-              margin: {
-
-                top:
-                  marginY,
-
-                bottom:
-                  marginY,
-
-                left:
-                  marginX,
-
-                right:
-                  marginX
+              margin:{
+                top:marginY,
+                bottom:marginY,
+                left:marginX,
+                right:marginX
               }
             }
           },
 
-
-          children: [
-
-            /*
-              Floating images
-            */
-
+          children:[
             new D.Paragraph({
-
-              children:
-                imgs,
-
-              spacing: {
-
-                after:
-                  0,
-
-                before:
-                  0
+              children:imgs,
+              spacing:{
+                after:0,
+                before:0
               }
             }),
-
-
-            /*
-              Editable text
-            */
 
             ...paras
           ]
         }
       ]
-    );
+    });
 
-
-  const blob =
+  const blob=
     await D.Packer.toBlob(
       doc
     );
 
-
   downloadBlob(
     blob,
-    "surat.docx"
+    'surat.docx'
   );
 }
 
-
-/* =========================================================
-   DOWNLOAD WORD
-========================================================= */
-
-function downloadBlob(
-  blob,
-  name
-) {
-
-  const url =
+function downloadBlob(blob,name){
+  const url=
     URL.createObjectURL(
       blob
     );
 
-
-  const a =
+  const a=
     document.createElement(
-      "a"
+      'a'
     );
 
-
-  a.href =
-    url;
-
-
-  a.download =
-    name;
-
+  a.href=url;
+  a.download=name;
 
   document.body.appendChild(
     a
   );
 
-
   a.click();
-
 
   a.remove();
 
-
   setTimeout(
-    () =>
+    ()=>
       URL.revokeObjectURL(
         url
       ),
@@ -2982,272 +1728,95 @@ function downloadBlob(
   );
 }
 
+async function exportWithPayment(kind){
+  if(working)return;
 
-/* =========================================================
-   EXPORT + PAYMENT VERIFICATION
-========================================================= */
+  working=true;
 
-async function exportWithPayment(
-  kind
-) {
+  const btn=$(
+    kind==='pdf'
+      ?'pdfBtn'
+      :'wordBtn'
+  );
 
-  if (working) return;
+  btn.disabled=true;
 
+  try{
 
-  /*
-    Untuk PDF:
-    buka tab kosong LANGSUNG
-    dari klik pengguna.
-
-    Kalau menunggu payment verification
-    dan html2canvas selesai, browser
-    bisa menganggap window.open()
-    sebagai popup ilegal.
-  */
-
-  let pdfWindow =
-    null;
-
-
-  if (
-    kind ===
-    "pdf"
-  ) {
-
-    pdfWindow =
-      window.open(
-        "",
-        "_blank"
-      );
-
-
-    if (!pdfWindow) {
-
-      status(
-        "Popup PDF diblokir browser. Izinkan popup untuk situs ini.",
-        "error"
-      );
-
-      return;
-    }
-
-
-    /*
-      Tampilan sementara
-      sambil PDF dibuat.
-    */
-
-    try {
-
-      pdfWindow.document.write(`
-        <!doctype html>
-        <html>
-        <head>
-          <title>Menyiapkan PDF...</title>
-          <meta charset="utf-8">
-          <style>
-            body{
-              margin:0;
-              font-family:Arial,sans-serif;
-              min-height:100vh;
-              display:flex;
-              align-items:center;
-              justify-content:center;
-              background:#f8fafc;
-              color:#334155;
-            }
-
-            .loading{
-              text-align:center;
-              padding:30px;
-            }
-
-            .loading strong{
-              display:block;
-              margin-bottom:8px;
-              font-size:18px;
-            }
-          </style>
-        </head>
-
-        <body>
-          <div class="loading">
-            <strong>Menyiapkan PDF...</strong>
-            Mohon tunggu beberapa saat.
-          </div>
-        </body>
-        </html>
-      `);
-
-      pdfWindow.document.close();
-
-    } catch {}
-  }
-
-
-  working =
-    true;
-
-
-  const btn =
-    $(
-      kind === "pdf"
-        ? "pdfBtn"
-        : "wordBtn"
-    );
-
-
-  btn.disabled =
-    true;
-
-
-  try {
-
-    /*
-      SELALU verifikasi ke backend.
-    */
-
-    if (
+    if(
       !await verified(
         paidOrderId
       )
-    ) {
-
+    ){
       throw Error(
-        "Pembayaran untuk draft ini belum terverifikasi."
+        'Pembayaran untuk draft ini belum terverifikasi.'
       );
     }
 
-
     modal(
-      $("printModal"),
+      $('printModal'),
       false
     );
 
-
-    if (
-      kind === "pdf"
-    ) {
-
-      await pdfExport(
-        pdfWindow
-      );
-
-
-      status(
-        "PDF berhasil dibuat dan dibuka di tab baru.",
-        "success"
-      );
-
-    } else {
-
+    if(kind==='pdf'){
+      await pdfExport();
+    }else{
       await docxExport();
-
-
-      status(
-        "Word (.docx) berhasil dibuat.",
-        "success"
-      );
     }
 
-  } catch (e) {
-
-    console.error(
-      "EXPORT ERROR:",
-      e
+    status(
+      `${
+        kind==='pdf'
+          ?'PDF'
+          :'Word (.docx)'
+      } berhasil dibuat.`,
+      'success'
     );
 
-
-    if (
-      pdfWindow &&
-      !pdfWindow.closed
-    ) {
-
-      try {
-        pdfWindow.close();
-      } catch {}
-    }
-
+  }catch(e){
+    console.error(e);
 
     status(
       `Gagal ekspor: ${e.message}`,
-      "error"
+      'error'
     );
 
-  } finally {
-
-    btn.disabled =
-      false;
-
-
-    working =
-      false;
+  }finally{
+    btn.disabled=false;
+    working=false;
   }
 }
 
+$('pdfBtn').addEventListener(
+  'click',
+  ()=>exportWithPayment('pdf')
+);
 
-/* =========================================================
-   EXPORT BUTTONS
-========================================================= */
-
-$("pdfBtn")
-  .addEventListener(
-    "click",
-    () =>
-      exportWithPayment(
-        "pdf"
-      )
-  );
-
-
-$("wordBtn")
-  .addEventListener(
-    "click",
-    () =>
-      exportWithPayment(
-        "word"
-      )
-  );
-
-
-/* =========================================================
-   ESCAPE
-========================================================= */
+$('wordBtn').addEventListener(
+  'click',
+  ()=>exportWithPayment('word')
+);
 
 document.addEventListener(
-  "keydown",
-  e => {
-
-    if (
-      e.key ===
-      "Escape"
-    ) {
-
-      selectedId =
-        null;
-
+  'keydown',
+  e=>{
+    if(e.key==='Escape'){
+      selectedId=null;
 
       render();
 
-
       modal(
-        $("printModal"),
+        $('printModal'),
         false
       );
 
-
       modal(
-        $("paymentInfoModal"),
+        $('paymentInfoModal'),
         false
       );
     }
   }
 );
-
-
-/* =========================================================
-   START APP
-========================================================= */
 
 restore();
 checkReturn();
