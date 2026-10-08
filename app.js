@@ -146,7 +146,7 @@ function saveState() {
   }
 }
 
-function resetPayment() {
+function startNewDraftSession() {
   currentOrderId = null;
   paidOrderId = null;
   draftId = newId();
@@ -234,10 +234,10 @@ async function generateSurat() {
       );
     }
 
-    // Reset hanya setelah AI berhasil.
-    resetPayment();
-    layers = [];
-    selectedId = null;
+    //  hanya setelah AI berhasil.
+startNewDraftSession();
+layers = [];
+selectedId = null;
 
     output.textContent = data.result.trim();
     renderLayers();
@@ -274,7 +274,7 @@ output.addEventListener("input", () => {
   editTimer = setTimeout(() => {
     // Perubahan teks menjadi versi draft baru.
     // Tidak menghapus layer gambar.
-    resetPayment();
+    Payment();
     saveState();
   }, 500);
 });
@@ -551,7 +551,7 @@ function addLayer(config) {
   selectedId = layer.id;
 
   renderLayers();
-  resetPayment();
+  Payment();
 }
 
 function getSelectedLayer() {
@@ -662,7 +662,7 @@ function attachLayerEvents(element, layer, resize, remove) {
       element.removeEventListener("pointercancel", end);
 
       renderLayers();
-      resetPayment();
+      Payment();
     }
 
     element.addEventListener("pointermove", move);
@@ -708,7 +708,7 @@ function attachLayerEvents(element, layer, resize, remove) {
       resize.removeEventListener("pointercancel", end);
 
       renderLayers();
-      resetPayment();
+      Payment();
     }
 
     resize.addEventListener("pointermove", move);
@@ -728,7 +728,7 @@ function deleteLayer(id) {
   if (selectedId === id) selectedId = null;
 
   renderLayers();
-  resetPayment();
+  Payment();
 }
 
 deleteLayerBtn.addEventListener("click", () => {
@@ -746,7 +746,7 @@ bringForwardBtn.addEventListener("click", () => {
 
   layer.z = Math.min(100, layer.z + 1);
   renderLayers();
-  resetPayment();
+  Payment();
 });
 
 sendBackwardBtn.addEventListener("click", () => {
@@ -755,7 +755,7 @@ sendBackwardBtn.addEventListener("click", () => {
 
   layer.z = Math.max(1, layer.z - 1);
   renderLayers();
-  resetPayment();
+  Payment();
 });
 
 preview.addEventListener("pointerdown", event => {
